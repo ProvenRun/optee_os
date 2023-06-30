@@ -50,6 +50,10 @@ $(call force, CFG_VERSAL_MBOX,y)
 # MBOX configuration
 CFG_VERSAL_MBOX_IPI_ID ?= 3
 
+# PM driver
+CFG_VERSAL_PM ?= y
+
+ifneq ($(PLATFORM_FLAVOR),adaptative)
 $(call force, CFG_VERSAL_RNG_DRV,y)
 $(call force, CFG_WITH_SOFTWARE_PRNG,n)
 
@@ -71,9 +75,6 @@ endif
 # SHA3-384 crypto engine
 CFG_VERSAL_SHA3_384 ?= y
 
-# PM driver
-CFG_VERSAL_PM ?= y
-
 # Physical Unclonable Function
 CFG_VERSAL_PUF ?= y
 
@@ -87,6 +88,10 @@ CFG_VERSAL_HUK ?= y
 CFG_VERSAL_HUK_KEY ?= 12
 ifneq ($(CFG_VERSAL_HUK_KEY),$(filter 6 7 11 12,$(firstword $(CFG_VERSAL_HUK_KEY))))
 $(error Invalid value: CFG_VERSAL_HUK_KEY=$(CFG_VERSAL_HUK_KEY))
+endif
+else
+$(call force, CFG_VERSAL_RNG_DRV,n)
+$(call force, CFG_WITH_SOFTWARE_PRNG,y)
 endif
 
 CFG_CORE_HEAP_SIZE ?= 262144
