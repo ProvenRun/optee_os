@@ -26,7 +26,11 @@ CFG_ARM64_core     ?= y
 CFG_TZDRAM_START   ?= 0x60000000
 CFG_TZDRAM_SIZE    ?= 0x10000000
 CFG_SHMEM_START    ?= 0x70000000
+ifeq ($(PLATFORM_FLAVOR),adaptative)
+CFG_SHMEM_SIZE     ?= 0x0FF00000
+else
 CFG_SHMEM_SIZE     ?= 0x10000000
+endif
 
 ifeq ($(CFG_ARM64_core),y)
 $(call force,CFG_CORE_ARM64_PA_BITS,43)
