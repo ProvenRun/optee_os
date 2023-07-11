@@ -53,7 +53,6 @@ CFG_VERSAL_MBOX_IPI_ID ?= 3
 # PM driver
 CFG_VERSAL_PM ?= y
 
-ifneq ($(PLATFORM_FLAVOR),adaptative)
 $(call force, CFG_VERSAL_RNG_DRV,y)
 $(call force, CFG_WITH_SOFTWARE_PRNG,n)
 
@@ -61,6 +60,7 @@ $(call force, CFG_WITH_SOFTWARE_PRNG,n)
 CFG_VERSAL_TRNG_SEED_LIFE ?= 3
 CFG_VERSAL_TRNG_DF_MUL ?= 2
 
+ifneq ($(PLATFORM_FLAVOR),adaptative)
 # eFuse and BBRAM driver
 $(call force, CFG_VERSAL_NVM,y)
 
@@ -89,9 +89,6 @@ CFG_VERSAL_HUK_KEY ?= 12
 ifneq ($(CFG_VERSAL_HUK_KEY),$(filter 6 7 11 12,$(firstword $(CFG_VERSAL_HUK_KEY))))
 $(error Invalid value: CFG_VERSAL_HUK_KEY=$(CFG_VERSAL_HUK_KEY))
 endif
-else
-$(call force, CFG_VERSAL_RNG_DRV,n)
-$(call force, CFG_WITH_SOFTWARE_PRNG,y)
 endif
 
 CFG_CORE_HEAP_SIZE ?= 262144
