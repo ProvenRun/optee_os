@@ -60,10 +60,10 @@ $(call force, CFG_WITH_SOFTWARE_PRNG,n)
 CFG_VERSAL_TRNG_SEED_LIFE ?= 3
 CFG_VERSAL_TRNG_DF_MUL ?= 2
 
-ifneq ($(PLATFORM_FLAVOR),adaptative)
 # eFuse and BBRAM driver
 $(call force, CFG_VERSAL_NVM,y)
 
+ifneq ($(PLATFORM_FLAVOR),adaptative)
 # Crypto driver
 CFG_VERSAL_CRYPTO_DRIVER ?= y
 ifeq ($(CFG_VERSAL_CRYPTO_DRIVER),y)
