@@ -63,7 +63,6 @@ CFG_VERSAL_TRNG_DF_MUL ?= 2
 # eFuse and BBRAM driver
 $(call force, CFG_VERSAL_NVM,y)
 
-ifneq ($(PLATFORM_FLAVOR),adaptative)
 # Crypto driver
 CFG_VERSAL_CRYPTO_DRIVER ?= y
 ifeq ($(CFG_VERSAL_CRYPTO_DRIVER),y)
@@ -75,6 +74,7 @@ endif
 # SHA3-384 crypto engine
 CFG_VERSAL_SHA3_384 ?= y
 
+ifneq ($(PLATFORM_FLAVOR),adaptative)
 # Physical Unclonable Function
 CFG_VERSAL_PUF ?= y
 
