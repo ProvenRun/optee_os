@@ -48,7 +48,7 @@ CFG_VERSAL_TRACE_PLM ?= n
 $(call force, CFG_VERSAL_MBOX,y)
 
 # MBOX configuration
-CFG_VERSAL_MBOX_IPI_ID ?= 3
+CFG_VERSAL_MBOX_IPI_ID ?= 5
 
 # PM driver
 CFG_VERSAL_PM ?= y
