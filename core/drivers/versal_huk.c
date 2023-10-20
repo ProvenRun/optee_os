@@ -186,7 +186,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	cmd.data[0] = API_ID(VERSAL_AES_INIT);
-	if (versal_mbox_notify(&cmd, NULL, NULL)) {
+	if (versal_mbox_notify_pmc(&cmd, NULL, NULL)) {
 		EMSG("AES_INIT error");
 		return TEE_ERROR_GENERIC;
 	}
@@ -202,7 +202,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		reg_pair_from_64(virt_to_phys(p.buf),
 				 &cmd.data[4], &cmd.data[3]);
 		cmd.ibuf[0].mem = p;
-		if (versal_mbox_notify(&cmd, NULL, NULL)) {
+		if (versal_mbox_notify_pmc(&cmd, NULL, NULL)) {
 			EMSG("AES_WRITE_KEY error");
 			ret = TEE_ERROR_GENERIC;
 		}
@@ -226,7 +226,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	reg_pair_from_64(virt_to_phys(init), &cmd.data[2], &cmd.data[1]);
 	cmd.ibuf[0].mem = init_buf;
 	cmd.ibuf[1].mem = p;
-	if (versal_mbox_notify(&cmd, NULL, NULL)) {
+	if (versal_mbox_notify_pmc(&cmd, NULL, NULL)) {
 		EMSG("AES_OP_INIT error");
 		ret = TEE_ERROR_GENERIC;
 	}
@@ -244,7 +244,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	else
 		cmd.data[3] = p.len;
 	cmd.ibuf[0].mem = p;
-	if (versal_mbox_notify(&cmd, NULL, NULL)) {
+	if (versal_mbox_notify_pmc(&cmd, NULL, NULL)) {
 		EMSG("AES_UPDATE_AAD error");
 		ret = TEE_ERROR_GENERIC;
 	}
@@ -266,7 +266,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	cmd.ibuf[0].mem = input_cmd;
 	cmd.ibuf[1].mem = p;
 	cmd.ibuf[2].mem = q;
-	if (versal_mbox_notify(&cmd, NULL, NULL)) {
+	if (versal_mbox_notify_pmc(&cmd, NULL, NULL)) {
 		EMSG("AES_UPDATE_PAYLOAD error");
 		ret = TEE_ERROR_GENERIC;
 	}
@@ -281,7 +281,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	versal_mbox_alloc(16, NULL, &p);
 	cmd.data[0] = API_ID(VERSAL_AES_ENCRYPT_FINAL);
 	reg_pair_from_64(virt_to_phys(p.buf), &cmd.data[2], &cmd.data[1]);
-	if (versal_mbox_notify(&cmd, NULL, NULL)) {
+	if (versal_mbox_notify_pmc(&cmd, NULL, NULL)) {
 		EMSG("AES_ENCRYPT_FINAL error");
 		ret = TEE_ERROR_GENERIC;
 	}
