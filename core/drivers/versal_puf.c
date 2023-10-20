@@ -143,7 +143,7 @@ TEE_Result versal_puf_register(struct versal_puf_data *buf,
 	reg_pair_from_64(virt_to_phys(arg.ibuf[0].mem.buf),
 			 &arg.data[2], &arg.data[1]);
 
-	if (versal_mbox_notify(&arg, NULL, &err)) {
+	if (versal_mbox_notify_pmc(&arg, NULL, &err)) {
 		EMSG("Versal, failed to register the PUF [%s]",
 		     versal_puf_error(err));
 
@@ -223,7 +223,7 @@ TEE_Result versal_puf_regenerate(struct versal_puf_data *buf,
 	reg_pair_from_64(virt_to_phys(arg.ibuf[0].mem.buf),
 			 &arg.data[2], &arg.data[1]);
 
-	if (versal_mbox_notify(&arg, NULL, &err)) {
+	if (versal_mbox_notify_pmc(&arg, NULL, &err)) {
 		EMSG("Versal, failed to regenerate the PUF [%s]",
 		     versal_puf_error(err));
 
@@ -253,7 +253,7 @@ TEE_Result versal_puf_clear_id(void)
 
 	arg.data[0] = PUF_API_ID(VERSAL_PUF_CLEAR_ID);
 
-	if (versal_mbox_notify(&arg, NULL, NULL)) {
+	if (versal_mbox_notify_pmc(&arg, NULL, NULL)) {
 		EMSG("Versal, failed to clear the PUF_ID");
 
 		return TEE_ERROR_GENERIC;
@@ -270,7 +270,7 @@ TEE_Result versal_puf_check_api(enum versal_puf_api id)
 	arg.data[0] = PUF_API_ID(VERSAL_PUF_API_FEATURES);
 	arg.data[1] = id;
 
-	if (versal_mbox_notify(&arg, NULL, NULL))
+	if (versal_mbox_notify_pmc(&arg, NULL, NULL))
 		return TEE_ERROR_GENERIC;
 
 	return TEE_SUCCESS;
