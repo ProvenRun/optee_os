@@ -402,9 +402,6 @@ TEE_Result versal_mbox_notify(struct versal_ipi *ipi, struct versal_ipi_cmd *cmd
 		goto out;
 	}
 
-	if (IS_ENABLED(CFG_VERSAL_TRACE_MBOX) && ipi->rmt == IPI_ID_PMC)
-		versal_mbox_call_trace(cmd->data[0]);
-
 	/* Trigger interrupt to remote */
 	io_write32(IPI_REG_BASE(ipi->lcl) + IPI_TRIG_OFFSET,
 		IPI_BIT_MASK(ipi->rmt));
@@ -422,17 +419,6 @@ TEE_Result versal_mbox_notify(struct versal_ipi *ipi, struct versal_ipi_cmd *cmd
 		if (err)
 			*err = status;
 
-		if (ipi->rmt == IPI_ID_PMC) {
-			/*
-			* Check the remote code (FSBL repository) in xplmi_status.h
-			* and the relevant service error (ie, xsecure_error.h) for
-			* detailed information.
-			*/
-			DMSG("PLM: plm status = 0x%" PRIx32 ", lib_status = 0x%" PRIx32,
-				(status & 0xFFFF0000) >> 16,
-				(status & 0x0000FFFF));
-		}
-
 		ret = TEE_ERROR_GENERIC;
 	}
 out:
@@ -446,7 +432,25 @@ static struct versal_ipi ipi_pmc;
 TEE_Result versal_mbox_notify_pmc(struct versal_ipi_cmd *cmd,
 			      struct versal_ipi_cmd *rsp, uint32_t *err)
 {
-	return versal_mbox_notify(&ipi_pmc, cmd, rsp, err);
+	TEE_Result ret;
+
+	if (IS_ENABLED(CFG_VERSAL_TRACE_MBOX))
+		versal_mbox_call_trace(cmd->data[0]);
+
+	ret = versal_mbox_notify(&ipi_pmc, cmd, rsp, err);
+
+	if ((ret != TEE_SUCCESS) && err) {
+		/*
+		* Check the remote code (FSBL repository) in xplmi_status.h
+		* and the relevant service error (ie, xsecure_error.h) for
+		* detailed information.
+		*/
+		DMSG("PLM: plm status = 0x%" PRIx32 ", lib_status = 0x%" PRIx32,
+			(*err & 0xFFFF0000) >> 16,
+			(*err & 0x0000FFFF));
+	}
+
+	return ret;
 }
 
 static TEE_Result versal_mbox_init(void)
