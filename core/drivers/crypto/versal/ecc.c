@@ -16,14 +16,35 @@
 #include <tee/tee_cryp_utl.h>
 #include <util.h>
 
-/* AMD/Xilinx Versal's Known Answer Tests */
-#define XSECURE_ECDSA_KAT_NIST_P384	0
-#define XSECURE_ECDSA_KAT_NIST_P521	2
-
 /* Software based ECDSA operations */
 static const struct crypto_ecc_keypair_ops *pair_ops;
 static const struct crypto_ecc_public_ops *pub_ops;
 
+#if defined(PLATFORM_FLAVOR_adaptative)
+static TEE_Result verify(uint32_t algo, struct ecc_public_key *key,
+			 const uint8_t *msg, size_t msg_len,
+			 const uint8_t *sig, size_t sig_len)
+{
+	return TEE_ERROR_NOT_IMPLEMENTED;
+}
+
+static TEE_Result sign(uint32_t algo, struct ecc_keypair *key,
+		       const uint8_t *msg, size_t msg_len,
+		       uint8_t *sig, size_t *sig_len)
+{
+	return TEE_ERROR_NOT_IMPLEMENTED;
+}
+
+static TEE_Result ecc_kat(void)
+{
+	return TEE_ERROR_NOT_IMPLEMENTED;
+}
+
+static TEE_Result ecc_hw_init(void)
+{
+	return TEE_ERROR_NOT_IMPLEMENTED;
+}
+#else
 enum versal_ecc_err {
 	KAT_KEY_NOTVALID_ERROR = 0xC0,
 	KAT_FAILED_ERROR,
@@ -320,6 +341,39 @@ out:
 	return ret;
 }
 
+/* AMD/Xilinx Versal's Known Answer Tests */
+#define XSECURE_ECDSA_KAT_NIST_P384	0
+#define XSECURE_ECDSA_KAT_NIST_P521	2
+
+static TEE_Result ecc_kat(void)
+{
+	struct versal_cmd_args arg = { };
+	uint32_t err = 0;
+
+	arg.data[arg.dlen++] = XSECURE_ECDSA_KAT_NIST_P384;
+	if (versal_crypto_request(VERSAL_ELLIPTIC_KAT, &arg, &err)) {
+		EMSG("Versal KAG NIST_P384: %s", versal_ecc_error(err));
+		return TEE_ERROR_GENERIC;
+	}
+
+	/* Clean previous request */
+	arg.dlen = 0;
+
+	arg.data[arg.dlen++] = XSECURE_ECDSA_KAT_NIST_P521;
+	if (versal_crypto_request(VERSAL_ELLIPTIC_KAT, &arg, &err)) {
+		EMSG("Versal KAG NIST_P521 %s", versal_ecc_error(err));
+		return TEE_ERROR_GENERIC;
+	}
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result ecc_hw_init(void)
+{
+	return TEE_SUCCESS;
+}
+#endif
+
 static TEE_Result shared_secret(struct ecc_keypair *private_key,
 				struct ecc_public_key *public_key,
 				void *secret, size_t *secret_len)
@@ -431,24 +485,19 @@ static struct drvcrypt_ecc driver_ecc = {
 
 static TEE_Result ecc_init(void)
 {
-	struct versal_cmd_args arg = { };
-	uint32_t err = 0;
+	TEE_Result ret;
 
-	arg.data[arg.dlen++] = XSECURE_ECDSA_KAT_NIST_P384;
-	if (versal_crypto_request(VERSAL_ELLIPTIC_KAT, &arg, &err)) {
-		EMSG("Versal KAG NIST_P384: %s", versal_ecc_error(err));
-		return TEE_ERROR_GENERIC;
-	}
+	/* HW initialization if needed */
+	ret = ecc_hw_init();
+	if (ret != TEE_SUCCESS)
+		return ret;
 
-	/* Clean previous request */
-	arg.dlen = 0;
+	/* Run KAT self-tests */
+	ret = ecc_kat();
+	if (ret != TEE_SUCCESS)
+		return ret;
 
-	arg.data[arg.dlen++] = XSECURE_ECDSA_KAT_NIST_P521;
-	if (versal_crypto_request(VERSAL_ELLIPTIC_KAT, &arg, &err)) {
-		EMSG("Versal KAG NIST_P521 %s", versal_ecc_error(err));
-		return TEE_ERROR_GENERIC;
-	}
-
+	/* Fall back to software implementations if needed */
 	pair_ops = crypto_asym_get_ecc_keypair_ops(TEE_TYPE_ECDSA_KEYPAIR);
 	if (!pair_ops)
 		return TEE_ERROR_GENERIC;
