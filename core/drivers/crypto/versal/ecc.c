@@ -10,17 +10,40 @@
 #include <initcall.h>
 #include <ipi.h>
 #include <kernel/panic.h>
+#include <kernel/delay.h>
 #include <mm/core_memprot.h>
+#include <mm/core_mmu.h>
 #include <string.h>
 #include <tee/cache.h>
 #include <tee/tee_cryp_utl.h>
 #include <util.h>
+#include <io.h>
+#include <config.h>
 
 /* Software based ECDSA operations */
 static const struct crypto_ecc_keypair_ops *pair_ops;
 static const struct crypto_ecc_public_ops *pub_ops;
 
 #if defined(PLATFORM_FLAVOR_adaptative)
+
+#define FPD_PKI_CRYPTO_BASEADDR			0x20400000000
+#define FPD_PKI_CTRLSTAT_BASEADDR		0x20400050000
+
+#define FPD_PKI_SIZE 					0x10000
+
+#define PKI_ENGINE_CTRL_OFFSET			0x00000C000
+#define PKI_ENGINE_CTRL_CM_MASK			0x1
+
+struct versal_pki {
+	vaddr_t regs;
+
+	void *rq_in;
+	void *rq_out;
+	void *cq;
+};
+
+static struct versal_pki versal_pki;
+
 static TEE_Result verify(uint32_t algo, struct ecc_public_key *key,
 			 const uint8_t *msg, size_t msg_len,
 			 const uint8_t *sig, size_t sig_len)
@@ -40,9 +63,111 @@ static TEE_Result ecc_kat(void)
 	return TEE_ERROR_NOT_IMPLEMENTED;
 }
 
+#define PSX_CRF_RST_PKI			0xEC200340
+
+#define PKI_ASSERT_RESET		1
+#define PKI_RESET_DELAY_US		10
+
+static TEE_Result versal_pki_engine_reset(void)
+{
+	vaddr_t reset;
+
+	/* Reset the PKI engine */
+	reset = (vaddr_t)core_mmu_add_mapping(MEM_AREA_IO_SEC,
+			      PSX_CRF_RST_PKI, SMALL_PAGE_SIZE);
+	if (!reset)
+		return TEE_ERROR_GENERIC;
+
+	io_write32(reset, PKI_ASSERT_RESET);
+	udelay(PKI_RESET_DELAY_US);
+	io_write32(reset, PKI_ASSERT_RESET);
+
+	core_mmu_remove_mapping(MEM_AREA_IO_SEC,
+					  (void *)reset, SMALL_PAGE_SIZE);
+
+	return TEE_SUCCESS;
+}
+
+#define FPD_SLCR_BASEADDR		0xEC8C0000
+#define FPD_SLCR_SIZE			0x4000
+
+#define FPD_SLCR_WPROT0_OFFSET			0x00000000
+#define FPD_SLCR_PKI_MUX_SEL_OFFSET		0x00002000
+
+#define FPD_CLEAR_WRITE_PROTECT 		0
+
+#define PKI_MUX_SEL_MASK				0x00000001
+#define PKI_MUX_SELECT					0x00000001
+
+static TEE_Result versal_pki_engine_slcr_config(void)
+{
+	vaddr_t fpd_slcr;
+
+	fpd_slcr = (vaddr_t)core_mmu_add_mapping(MEM_AREA_IO_SEC,
+					  FPD_SLCR_BASEADDR, FPD_SLCR_SIZE);
+	if (!fpd_slcr)
+		return TEE_ERROR_GENERIC;
+
+	/* Clear FPD SCLR write protect reg */
+	io_write32(fpd_slcr + FPD_SLCR_WPROT0_OFFSET,
+					  FPD_CLEAR_WRITE_PROTECT);
+
+	/* PKI mux selection */
+	io_mask32(fpd_slcr + FPD_SLCR_PKI_MUX_SEL_OFFSET,
+				  PKI_MUX_SELECT, PKI_MUX_SEL_MASK);
+
+	core_mmu_remove_mapping(MEM_AREA_IO_SEC,
+					  (void *)fpd_slcr, FPD_SLCR_SIZE);
+
+	return TEE_SUCCESS;
+}
+
+static TEE_Result versal_pki_config_cm(void)
+{
+	vaddr_t regs;
+	uint64_t val;
+
+	regs = (vaddr_t)core_mmu_add_mapping(MEM_AREA_IO_SEC,
+						  FPD_PKI_CTRLSTAT_BASEADDR, FPD_PKI_SIZE);
+	if (!regs)
+		return TEE_ERROR_GENERIC;
+
+	val = io_read64(regs + PKI_ENGINE_CTRL_OFFSET);
+	if (IS_ENABLED(CFG_VERSAL_PKI_COUNTER_MEASURES)) {
+		val &= ~PKI_ENGINE_CTRL_CM_MASK;
+	} else {
+		val |= PKI_ENGINE_CTRL_CM_MASK;
+	}
+	io_write64(regs + PKI_ENGINE_CTRL_OFFSET, val);
+
+	core_mmu_remove_mapping(MEM_AREA_IO_SEC,
+						  (void *)regs, FPD_PKI_SIZE);
+
+	return TEE_SUCCESS;
+}
+
 static TEE_Result ecc_hw_init(void)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	TEE_Result ret;
+
+	ret = versal_pki_engine_slcr_config();
+	if (ret != TEE_SUCCESS)
+		return ret;
+
+	ret = versal_pki_engine_reset();
+	if (ret != TEE_SUCCESS)
+		return ret;
+
+	ret = versal_pki_config_cm();
+	if (ret != TEE_SUCCESS)
+		return ret;
+
+	versal_pki.regs = (vaddr_t)core_mmu_add_mapping(MEM_AREA_IO_SEC,
+		FPD_PKI_CRYPTO_BASEADDR, FPD_PKI_SIZE);
+	if (!versal_pki.regs)
+		return TEE_ERROR_GENERIC;
+
+	return TEE_SUCCESS;
 }
 #else
 enum versal_ecc_err {

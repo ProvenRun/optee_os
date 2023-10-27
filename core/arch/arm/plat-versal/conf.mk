@@ -69,6 +69,10 @@ ifeq ($(CFG_VERSAL_CRYPTO_DRIVER),y)
 # Disable Fault Mitigation: triggers false positives due to
 # the driver's software fallback operations - need further work
 CFG_FAULT_MITIGATION ?= n
+
+ifeq ($(PLATFORM_FLAVOR),adaptative)
+CFG_VERSAL_PKI_COUNTER_MEASURES ?= n
+endif
 endif
 
 # SHA3-384 crypto engine
