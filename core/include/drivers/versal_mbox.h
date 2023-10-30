@@ -35,7 +35,8 @@ struct versal_ipi {
 	/* Exclusive access to the IPI shared buffer */
 	struct mutex lock;
 
-	void *regs;
+	vaddr_t regs;
+
 	void *rsp;
 	void *req;
 };

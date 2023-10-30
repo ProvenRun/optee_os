@@ -336,7 +336,7 @@ TEE_Result versal_mbox_open(uint32_t local, uint32_t remote,
 {
 	assert(ipi);
 
-	ipi->regs = core_mmu_add_mapping(MEM_AREA_IO_SEC,
+	ipi->regs = (vaddr_t)core_mmu_add_mapping(MEM_AREA_IO_SEC,
 				       IPI_REG_BASE(local), IPI_SIZE);
 
 	ipi->req = core_mmu_add_mapping(MEM_AREA_IO_SEC,
@@ -354,8 +354,8 @@ TEE_Result versal_mbox_open(uint32_t local, uint32_t remote,
 
 	mutex_init(&ipi->lock);
 
-	io_write32(IPI_REG_BASE(local) + IPI_IDR_OFFSET, IPI_BIT_MASK(remote));
-	io_write32(IPI_REG_BASE(local) + IPI_ISR_OFFSET, IPI_BIT_MASK(remote));
+	io_write32(ipi->regs + IPI_IDR_OFFSET, IPI_BIT_MASK(remote));
+	io_write32(ipi->regs + IPI_ISR_OFFSET, IPI_BIT_MASK(remote));
 
 	return TEE_SUCCESS;
 }
@@ -364,7 +364,7 @@ TEE_Result versal_mbox_close(struct versal_ipi *ipi)
 {
 	assert(ipi);
 
-	io_write32(IPI_REG_BASE(ipi->lcl) + IPI_IDR_OFFSET,
+	io_write32(ipi->regs + IPI_IDR_OFFSET,
 		IPI_BIT_MASK(ipi->rmt));
 
 	return TEE_SUCCESS;
@@ -403,12 +403,12 @@ TEE_Result versal_mbox_notify(struct versal_ipi *ipi, struct versal_ipi_cmd *cmd
 	}
 
 	/* Trigger interrupt to remote */
-	io_write32(IPI_REG_BASE(ipi->lcl) + IPI_TRIG_OFFSET,
+	io_write32(ipi->regs + IPI_TRIG_OFFSET,
 		IPI_BIT_MASK(ipi->rmt));
 
 	/* Wait for remote to acknowledge the interrupt */
 	do {
-		status = io_read32(IPI_REG_BASE(ipi->lcl) + IPI_OBR_OFFSET);
+		status = io_read32(ipi->regs + IPI_OBR_OFFSET);
 	} while (status & IPI_BIT_MASK(ipi->rmt));
 
 	ret = versal_mbox_read_rsp(ipi, cmd, rsp, &status);
