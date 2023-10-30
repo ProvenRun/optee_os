@@ -34,6 +34,8 @@ static const struct crypto_ecc_public_ops *pub_ops;
 #define PKI_ENGINE_CTRL_OFFSET			0x00000C000
 #define PKI_ENGINE_CTRL_CM_MASK			0x1
 
+#define PKI_QUEUE_BUF_SIZE				0x20000
+
 struct versal_pki {
 	vaddr_t regs;
 
@@ -165,6 +167,19 @@ static TEE_Result ecc_hw_init(void)
 	versal_pki.regs = (vaddr_t)core_mmu_add_mapping(MEM_AREA_IO_SEC,
 		FPD_PKI_CRYPTO_BASEADDR, FPD_PKI_SIZE);
 	if (!versal_pki.regs)
+		return TEE_ERROR_GENERIC;
+
+	/* Allocate queues */
+	versal_pki.rq_in = memalign(CACHELINE_LEN, PKI_QUEUE_BUF_SIZE);
+	if (!versal_pki.rq_in)
+		return TEE_ERROR_GENERIC;
+
+	versal_pki.rq_out = memalign(CACHELINE_LEN, PKI_QUEUE_BUF_SIZE);
+	if (!versal_pki.rq_out)
+		return TEE_ERROR_GENERIC;
+
+	versal_pki.cq = memalign(CACHELINE_LEN, PKI_QUEUE_BUF_SIZE);
+	if (!versal_pki.cq)
 		return TEE_ERROR_GENERIC;
 
 	return TEE_SUCCESS;
