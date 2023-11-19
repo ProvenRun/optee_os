@@ -24,6 +24,76 @@
 static const struct crypto_ecc_keypair_ops *pair_ops;
 static const struct crypto_ecc_public_ops *pub_ops;
 
+static TEE_Result ecc_get_key_size(uint32_t curve, size_t *bytes, size_t *bits)
+{
+	switch (curve) {
+#if defined(PLATFORM_FLAVOR_adaptative)
+	case TEE_ECC_CURVE_NIST_P256:
+		*bits = 256;
+		*bytes = 32;
+		break;
+#endif
+	case TEE_ECC_CURVE_NIST_P384:
+		*bits = 384;
+		*bytes = 48;
+		break;
+	case TEE_ECC_CURVE_NIST_P521:
+		*bits = 521;
+		*bytes = 66;
+		break;
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	return TEE_SUCCESS;
+}
+
+static void memcpy_swp(uint8_t *to, const uint8_t *from, size_t len)
+{
+	size_t i = 0;
+
+	for (i = 0; i < len; i++)
+		to[i] = from[len - 1 - i];
+}
+
+static void crypto_bignum_bn2bin_eswap(uint32_t curve,
+				       struct bignum *from, uint8_t *to)
+{
+	uint8_t pad[66] = { 0 };
+	size_t len = crypto_bignum_num_bytes(from);
+	size_t bytes = 0;
+	size_t bits = 0;
+
+	if (ecc_get_key_size(curve, &bytes, &bits))
+		panic();
+
+	crypto_bignum_bn2bin(from, pad + bytes - len);
+	memcpy_swp(to, pad, bytes);
+}
+
+static TEE_Result ecc_prepare_msg(uint32_t algo, const uint8_t *msg,
+				  size_t msg_len, size_t *len, uint8_t *buf)
+{
+	if (msg_len > TEE_SHA512_HASH_SIZE + 2)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (algo == TEE_ALG_ECDSA_SHA384)
+		*len = TEE_SHA384_HASH_SIZE;
+	else if (algo == TEE_ALG_ECDSA_SHA512)
+		*len = TEE_SHA512_HASH_SIZE + 2;
+#if defined(PLATFORM_FLAVOR_adaptative)
+	else if (algo == TEE_ALG_ECDSA_SHA256)
+		*len = TEE_SHA256_HASH_SIZE;
+#endif
+	else
+		return TEE_ERROR_NOT_SUPPORTED;
+
+	/* Swap the hash/message and pad if necessary */
+	memcpy_swp(buf, msg, msg_len);
+
+	return TEE_SUCCESS;
+}
+
 #if defined(PLATFORM_FLAVOR_adaptative)
 
 #define FPD_PKI_CRYPTO_BASEADDR			0x20400000000
@@ -242,73 +312,13 @@ static const char *versal_ecc_error(uint8_t err)
 	return "Unknown";
 }
 
-static TEE_Result ecc_get_key_size(uint32_t curve, size_t *bytes, size_t *bits)
-{
-	switch (curve) {
-	case TEE_ECC_CURVE_NIST_P384:
-		*bits = 384;
-		*bytes = 48;
-		break;
-	case TEE_ECC_CURVE_NIST_P521:
-		*bits = 521;
-		*bytes = 66;
-		break;
-	default:
-		return TEE_ERROR_NOT_SUPPORTED;
-	}
-
-	return TEE_SUCCESS;
-}
-
-static void memcpy_swp(uint8_t *to, const uint8_t *from, size_t len)
-{
-	size_t i = 0;
-
-	for (i = 0; i < len; i++)
-		to[i] = from[len - 1 - i];
-}
-
-static void crypto_bignum_bn2bin_eswap(uint32_t curve,
-				       struct bignum *from, uint8_t *to)
-{
-	uint8_t pad[66] = { 0 };
-	size_t len = crypto_bignum_num_bytes(from);
-	size_t bytes = 0;
-	size_t bits = 0;
-
-	if (ecc_get_key_size(curve, &bytes, &bits))
-		panic();
-
-	crypto_bignum_bn2bin(from, pad + bytes - len);
-	memcpy_swp(to, pad, bytes);
-}
-
-static TEE_Result ecc_prepare_msg(uint32_t algo, const uint8_t *msg,
-				  size_t msg_len, struct versal_mbox_mem *p)
-{
-	uint8_t swp[TEE_SHA512_HASH_SIZE + 2] = { 0 };
-	size_t len = 0;
-
-	if (msg_len > TEE_SHA512_HASH_SIZE + 2)
-		return TEE_ERROR_BAD_PARAMETERS;
-
-	if (algo == TEE_ALG_ECDSA_SHA384)
-		len = TEE_SHA384_HASH_SIZE;
-	else if (algo == TEE_ALG_ECDSA_SHA512)
-		len = TEE_SHA512_HASH_SIZE + 2;
-	else
-		return TEE_ERROR_NOT_SUPPORTED;
-
-	/* Swap the hash/message and pad if necessary */
-	memcpy_swp(swp, msg, msg_len);
-	return versal_mbox_alloc(len, swp, p);
-}
-
 static TEE_Result verify(uint32_t algo, struct ecc_public_key *key,
 			 const uint8_t *msg, size_t msg_len,
 			 const uint8_t *sig, size_t sig_len)
 {
 	TEE_Result ret = TEE_SUCCESS;
+	uint8_t swp[TEE_SHA512_HASH_SIZE + 2] = { 0 };
+	size_t len = 0;
 	struct versal_ecc_verify_param *cmd = NULL;
 	struct versal_cmd_args arg = { };
 	struct versal_mbox_mem x = { };
@@ -331,9 +341,10 @@ static TEE_Result verify(uint32_t algo, struct ecc_public_key *key,
 		return pub_ops->verify(algo, key, msg, msg_len, sig, sig_len);
 	}
 
-	ret = ecc_prepare_msg(algo, msg, msg_len, &p);
+	ret = ecc_prepare_msg(algo, msg, msg_len, &len, &swp);
 	if (ret)
 		return ret;
+	versal_mbox_alloc(len, swp, &p);
 
 	versal_mbox_alloc(bytes * 2, NULL, &x);
 	crypto_bignum_bn2bin_eswap(key->curve, key->x, x.buf);
@@ -388,6 +399,8 @@ static TEE_Result sign(uint32_t algo, struct ecc_keypair *key,
 		       const uint8_t *msg, size_t msg_len,
 		       uint8_t *sig, size_t *sig_len)
 {
+	uint8_t swp[TEE_SHA512_HASH_SIZE + 2] = { 0 };
+	size_t len = 0;
 	struct versal_ecc_sign_param *cmd = NULL;
 	struct versal_mbox_mem cmd_buf = { };
 	struct ecc_keypair ephemeral = { };
@@ -411,9 +424,10 @@ static TEE_Result sign(uint32_t algo, struct ecc_keypair *key,
 	}
 
 	/* Hash and update the length */
-	ret = ecc_prepare_msg(algo, msg, msg_len, &p);
+	ret = ecc_prepare_msg(algo, msg, msg_len, &len, &swp);
 	if (ret)
 		return ret;
+	versal_mbox_alloc(len, swp, &p);
 
 	/* Ephemeral private key */
 	ret = drvcrypt_asym_alloc_ecc_keypair(&ephemeral,
