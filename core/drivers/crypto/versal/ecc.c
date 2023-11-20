@@ -312,10 +312,11 @@ static TEE_Result pki_start_operation(uint32_t reqval)
 
 static TEE_Result pki_check_status(void)
 {
-	uint32_t *cq_status = (uint32_t *)versal_pki.cq;
+	uint32_t cq_status = io_read32((vaddr_t)versal_pki.cq);
+	uint32_t cq_value = io_read32((vaddr_t)versal_pki.cq + 4);
 
-	if ((cq_status[0] != PKI_EXPECTED_CQ_STATUS) ||
-		(cq_status[1] != PKI_EXPECTED_CQ_VALUE))
+	if ((cq_status != PKI_EXPECTED_CQ_STATUS) ||
+		(cq_value != PKI_EXPECTED_CQ_VALUE))
 		return TEE_ERROR_GENERIC;
 
 	return TEE_SUCCESS;
@@ -325,16 +326,75 @@ static TEE_Result verify(uint32_t algo, struct ecc_public_key *key,
 			 const uint8_t *msg, size_t msg_len,
 			 const uint8_t *sig, size_t sig_len)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	TEE_Result ret = TEE_SUCCESS;
+
+	size_t bits = 0;
+	size_t bytes = 0;
+	size_t len = 0;
+
+	uintptr_t addr = (uintptr_t)versal_pki.rq_in;
+
+	ret = ecc_get_key_size(key->curve, &bytes, &bits);
+	if (ret != TEE_SUCCESS) {
+		if (ret != TEE_ERROR_NOT_SUPPORTED)
+			return ret;
+
+		/* Fallback to software */
+		return pub_ops->verify(algo, key, msg, msg_len, sig, sig_len);
+	}
+
+	/* Copy public key */
+	crypto_bignum_bn2bin_eswap(key->curve, key->x, (uint8_t *)addr);
+	addr += bytes;
+	crypto_bignum_bn2bin_eswap(key->curve, key->y, (uint8_t *)addr);
+	addr += bytes;
+
+	/* Copy signature */
+	memcpy_swp((uint8_t *)addr, sig, sig_len / 2);
+	addr += sig_len / 2;
+	memcpy_swp((uint8_t *)addr, sig + sig_len / 2, sig_len / 2);
+	addr += sig_len / 2;
+
+	/* Copy hash */
+	ret = ecc_prepare_msg(algo, msg, msg_len, &len, (uint8_t *)addr);
+	if (ret)
+		return ret;
+	if (len < bytes) {
+		memset((uint8_t *)addr + len, 0, bytes - len);
+	}
+	addr += bytes;
+
+	if (key->curve == TEE_ECC_CURVE_NIST_P521) {
+		memset((uint8_t *)addr, 0, PKI_VERIFY_P521_PADD_BYTES);
+		addr += PKI_VERIFY_P521_PADD_BYTES;
+	}
+
+	/* Build descriptors */
+	ret = pki_build_descriptors(key->curve,
+		PKI_DESC_OPTYPE_ECDSA_VERIFY, (uint32_t *)addr);
+	if (ret)
+		return ret;
+
+	ret = pki_start_operation(PKI_NEW_REQUEST_MASK & (addr + 1));
+	if (ret)
+		return ret;
+
+	ret = pki_check_status();
+	if (ret)
+		return ret;
+
+	/* Clear memory */
+	memset(versal_pki.rq_in, 0, PKI_QUEUE_BUF_SIZE);
+	memset(versal_pki.cq, 0, PKI_QUEUE_BUF_SIZE);
+
+	return TEE_SUCCESS;
 }
 
 static TEE_Result sign(uint32_t algo, struct ecc_keypair *key,
 		       const uint8_t *msg, size_t msg_len,
 		       uint8_t *sig, size_t *sig_len)
 {
-	TEE_Result res = TEE_SUCCESS;
-
-	uint32_t ret = 0;
+	TEE_Result ret = TEE_SUCCESS;
 	size_t bits = 0;
 	size_t bytes = 0;
 	size_t len = 0;
@@ -416,7 +476,7 @@ static TEE_Result sign(uint32_t algo, struct ecc_keypair *key,
 	memset(versal_pki.rq_out, 0, PKI_QUEUE_BUF_SIZE);
 	memset(versal_pki.cq, 0, PKI_QUEUE_BUF_SIZE);
 
-	return res;
+	return ret;
 }
 
 static TEE_Result ecc_kat(void)
