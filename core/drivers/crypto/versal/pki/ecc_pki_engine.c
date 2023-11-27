@@ -392,11 +392,6 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 	return ret;
 }
 
-TEE_Result versal_ecc_kat(void)
-{
-	return TEE_ERROR_NOT_IMPLEMENTED;
-}
-
 #define PSX_CRF_RST_PKI			0xEC200340
 
 #define PKI_ASSERT_RESET		1
