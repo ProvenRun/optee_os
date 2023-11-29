@@ -215,7 +215,113 @@ static const uint8_t H_P521[] = {
 	0xdb, 0xcc,
 };
 
+static TEE_Result versal_ecc_sign_kat(uint32_t curve)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	return ret;
+}
+
+static TEE_Result versal_ecc_verify_kat(uint32_t curve)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	size_t bytes;
+	size_t bits;
+	struct ecc_public_key pkey;
+
+	uint32_t algo;
+	uint8_t *Qx;
+	uint8_t *Qy;
+	uint8_t *SignR;
+	uint8_t *SignS;
+	uint8_t *hash;
+	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2];
+
+	switch (curve) {
+		case TEE_ECC_CURVE_NIST_P256:
+			algo = TEE_ALG_ECDSA_SHA256;
+			Qx = (uint8_t *)PubkeyQx_P256;
+			Qy = (uint8_t *)PubkeyQy_P256;
+			SignR = (uint8_t *)SignR_P256;
+			SignS = (uint8_t *)SignS_P256;
+			hash = (uint8_t *)H_P256;
+			break;
+		case TEE_ECC_CURVE_NIST_P384:
+			algo = TEE_ALG_ECDSA_SHA384;
+			Qx = (uint8_t *)PubkeyQx_P384;
+			Qy = (uint8_t *)PubkeyQy_P384;
+			SignR = (uint8_t *)SignR_P384;
+			SignS = (uint8_t *)SignS_P384;
+			hash = (uint8_t *)H_P384;
+			break;
+		case TEE_ECC_CURVE_NIST_P521:
+			algo = TEE_ALG_ECDSA_SHA512;
+			Qx = (uint8_t *)PubkeyQx_P521;
+			Qy = (uint8_t *)PubkeyQy_P521;
+			SignR = (uint8_t *)SignR_P521;
+			SignS = (uint8_t *)SignS_P521;
+			hash = (uint8_t *)H_P521;
+			break;
+		default:
+			return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	ret = versal_ecc_get_key_size(curve, &bytes, &bits);
+	if (ret)
+		return ret;
+
+	/* Prepare public key */
+	ret = crypto_asym_alloc_ecc_public_key(&pkey, TEE_TYPE_ECDSA_KEYPAIR, bits);
+	if (ret)
+		return ret;
+	pkey.curve = curve;
+
+	ret = crypto_bignum_bin2bn(Qx, bytes, pkey.x);
+	if (ret)
+		goto end;
+	ret = crypto_bignum_bin2bn(Qy, bytes, pkey.y);
+	if (ret)
+		goto end;
+
+	/* Prepare signature to verify */
+	memcpy((uint8_t *)sig, SignR, bytes);
+	memcpy((uint8_t *)sig + bytes, SignS, bytes);
+
+	/* Call PKI hW */
+	ret = versal_ecc_verify(algo, &pkey, hash, bytes, sig, 2 * bytes);
+
+end:
+	crypto_bignum_free(pkey.x);
+	crypto_bignum_free(pkey.y);
+	return ret;
+}
+
 TEE_Result versal_ecc_kat(void)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	TEE_Result ret = TEE_SUCCESS;
+
+	ret = versal_ecc_sign_kat(TEE_ECC_CURVE_NIST_P256);
+	if (ret)
+		return ret;
+
+	ret = versal_ecc_verify_kat(TEE_ECC_CURVE_NIST_P256);
+	if (ret)
+		return ret;
+
+	ret = versal_ecc_sign_kat(TEE_ECC_CURVE_NIST_P384);
+	if (ret)
+		return ret;
+
+	ret = versal_ecc_verify_kat(TEE_ECC_CURVE_NIST_P384);
+	if (ret)
+		return ret;
+
+	ret = versal_ecc_sign_kat(TEE_ECC_CURVE_NIST_P521);
+	if (ret)
+		return ret;
+
+	ret = versal_ecc_verify_kat(TEE_ECC_CURVE_NIST_P521);
+	if (ret)
+		return ret;
+
+	return ret;
 }
