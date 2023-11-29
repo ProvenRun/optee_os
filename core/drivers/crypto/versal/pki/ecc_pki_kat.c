@@ -218,6 +218,93 @@ static const uint8_t H_P521[] = {
 static TEE_Result versal_ecc_sign_kat(uint32_t curve)
 {
 	TEE_Result ret = TEE_SUCCESS;
+	size_t bytes;
+	size_t bits;
+	struct ecc_keypair key;
+	struct ecc_keypair ephemeral;
+
+	uint32_t algo;
+	uint8_t *D;
+	uint8_t *K;
+	uint8_t *SignR;
+	uint8_t *SignS;
+	uint8_t *hash;
+	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2];
+	size_t sig_len = 0;
+
+	switch (curve) {
+		case TEE_ECC_CURVE_NIST_P256:
+			algo = TEE_ALG_ECDSA_SHA256;
+			D = (uint8_t *)D_P256;
+			K = (uint8_t *)K_P256;
+			SignR = (uint8_t *)SignR_P256;
+			SignS = (uint8_t *)SignS_P256;
+			hash = (uint8_t *)H_P256;
+			break;
+		case TEE_ECC_CURVE_NIST_P384:
+			algo = TEE_ALG_ECDSA_SHA384;
+			D = (uint8_t *)D_P384;
+			K = (uint8_t *)K_P384;
+			SignR = (uint8_t *)SignR_P384;
+			SignS = (uint8_t *)SignS_P384;
+			hash = (uint8_t *)H_P384;
+			break;
+		case TEE_ECC_CURVE_NIST_P521:
+			algo = TEE_ALG_ECDSA_SHA512;
+			D = (uint8_t *)D_P521;
+			K = (uint8_t *)K_P521;
+			SignR = (uint8_t *)SignR_P521;
+			SignS = (uint8_t *)SignS_P521;
+			hash = (uint8_t *)H_P521;
+			break;
+		default:
+			return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	ret = versal_ecc_get_key_size(curve, &bytes, &bits);
+	if (ret)
+		return ret;
+
+	/* Prepare private key */
+	ret = crypto_asym_alloc_ecc_keypair(&key, TEE_TYPE_ECDSA_KEYPAIR, bits);
+	if (ret)
+		return ret;
+	key.curve = curve;
+
+	ret = crypto_bignum_bin2bn(D, bytes, key.d);
+	if (ret)
+		goto end;
+
+	/* Prepare ephemeral key */
+	ret = crypto_asym_alloc_ecc_keypair(&ephemeral,
+			   TEE_TYPE_ECDSA_KEYPAIR, bits);
+	if (ret)
+		goto end;
+
+	ret = crypto_bignum_bin2bn(K, bytes, ephemeral.d);
+	if (ret)
+		goto endk;
+
+	/* Call PKI hW */
+	ret = versal_ecc_sign_ephemeral(algo, bytes, &key,
+			   &ephemeral, hash, bytes, sig, &sig_len);
+
+	if (ret == TEE_SUCCESS) {
+		/* Check generated signature */
+		if ((memcmp((uint8_t *)sig, SignR, bytes) != 0) ||
+			(memcmp((uint8_t *)sig + bytes, SignS, bytes) != 0))
+			ret = TEE_ERROR_SIGNATURE_INVALID;
+	}
+
+endk:
+	crypto_bignum_free(ephemeral.x);
+	crypto_bignum_free(ephemeral.y);
+	crypto_bignum_free(ephemeral.d);
+end:
+	crypto_bignum_free(key.x);
+	crypto_bignum_free(key.y);
+	crypto_bignum_free(key.d);
+
 	return ret;
 }
 
