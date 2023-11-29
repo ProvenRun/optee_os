@@ -315,18 +315,11 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 	TEE_Result ret = TEE_SUCCESS;
 	size_t bits = 0;
 	size_t bytes = 0;
-	size_t len = 0;
 	struct ecc_keypair ephemeral = { };
-
-	uintptr_t addr = (uintptr_t)versal_pki.rq_in;
 
 	ret = versal_ecc_get_key_size(key->curve, &bytes, &bits);
 	if (ret)
 		return ret;
-
-	/* Copy private key */
-	crypto_bignum_bn2bin_eswap(key->curve, key->d, (uint8_t *)addr);
-	addr += bytes;
 
 	/* Ephemeral private key */
 	ret = drvcrypt_asym_alloc_ecc_keypair(&ephemeral,
@@ -343,12 +336,33 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 		return ret;
 	}
 
-	crypto_bignum_bn2bin_eswap(key->curve, ephemeral.d, (uint8_t *)addr);
-	addr += bytes;
+	ret = versal_ecc_sign_ephemeral(algo, bytes, key, &ephemeral,
+			   msg, msg_len, sig, sig_len);
 
 	crypto_bignum_free(ephemeral.d);
 	crypto_bignum_free(ephemeral.x);
 	crypto_bignum_free(ephemeral.y);
+
+	return ret;
+}
+
+TEE_Result versal_ecc_sign_ephemeral(uint32_t algo, size_t bytes,
+			   struct ecc_keypair *key, struct ecc_keypair *ephemeral,
+		       const uint8_t *msg, size_t msg_len,
+		       uint8_t *sig, size_t *sig_len)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	size_t len = 0;
+
+	uintptr_t addr = (uintptr_t)versal_pki.rq_in;
+
+	/* Copy private key */
+	crypto_bignum_bn2bin_eswap(key->curve, key->d, (uint8_t *)addr);
+	addr += bytes;
+
+	/* Copy ephemeral key */
+	crypto_bignum_bn2bin_eswap(key->curve, ephemeral->d, (uint8_t *)addr);
+	addr += bytes;
 
 	/* Copy hash */
 	ret = versal_ecc_prepare_msg(algo, msg, msg_len, &len, (uint8_t *)addr);
@@ -390,11 +404,6 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 	memset(versal_pki.cq, 0, PKI_QUEUE_BUF_SIZE);
 
 	return ret;
-}
-
-TEE_Result versal_ecc_kat(void)
-{
-	return TEE_ERROR_NOT_IMPLEMENTED;
 }
 
 #define PSX_CRF_RST_PKI			0xEC200340
