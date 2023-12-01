@@ -70,6 +70,14 @@ void crypto_bignum_bn2bin_eswap(uint32_t curve, struct bignum *from, uint8_t *to
 	memcpy_swp(to, pad, bytes);
 }
 
+void crypto_bignum_bin2bn_eswap(const uint8_t *from, size_t sz, struct bignum *to)
+{
+	uint8_t pad[66] = { 0 };
+
+	memcpy_swp(pad, from, sz);
+	crypto_bignum_bin2bn(pad, sz, to);
+}
+
 TEE_Result versal_ecc_prepare_msg(uint32_t algo, const uint8_t *msg,
 				  size_t msg_len, size_t *len, uint8_t *buf)
 {
@@ -151,12 +159,12 @@ static TEE_Result do_verify(struct drvcrypt_sign_data *sdata)
 
 static TEE_Result do_gen_keypair(struct ecc_keypair *s, size_t size_bits)
 {
-	/*
-	 * Versal requires little endian so need to memcpy_swp on Versal IP ops.
-	 * We chose not to do it here because some tests might be using
-	 * their own keys
-	 */
-	return pair_ops->generate(s, size_bits);
+	TEE_Result ret = versal_ecc_gen_keypair(s);
+
+	if (ret == TEE_ERROR_NOT_SUPPORTED)
+		return pair_ops->generate(s, size_bits);
+
+	return ret;
 }
 
 static TEE_Result do_alloc_keypair(struct ecc_keypair *s,

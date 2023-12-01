@@ -8,6 +8,7 @@
 #include <crypto/crypto_impl.h>
 #include <initcall.h>
 #include <ecc.h>
+#include <rng_support.h>
 #include <kernel/panic.h>
 #include <kernel/delay.h>
 #include <mm/core_memprot.h>
@@ -101,9 +102,13 @@ static struct versal_pki versal_pki;
 
 #define PKI_SIGN_INPUT_OP_COUNT				3
 #define PKI_VERIFY_INPUT_OP_COUNT			5
+#define PKI_MOD_ADD_INPUT_OP_COUNT			3
+#define PKI_ECC_POINTMUL_INPUT_OP_COUNT		3
 
 #define PKI_SIGN_OUTPUT_OP_COUNT			2
 #define PKI_VERIFY_OUTPUT_OP_COUNT			0
+#define PKI_MOD_ADD_OUTPUT_OP_COUNT			1
+#define PKI_ECC_POINTMUL_OUTPUT_OP_COUNT	2
 
 #define PKI_SIGN_P521_PADD_BYTES			2
 #define PKI_VERIFY_P521_PADD_BYTES			6
@@ -131,6 +136,14 @@ static void pki_get_opsize(uint32_t curve, uint32_t op, size_t *in_sz, size_t *o
 			*in_sz = bytes * PKI_VERIFY_INPUT_OP_COUNT;
 			*out_sz = bytes * PKI_VERIFY_OUTPUT_OP_COUNT;
 			break;
+		case PKI_DESC_OPTYPE_MOD_ADD:
+			*in_sz = bytes * PKI_MOD_ADD_INPUT_OP_COUNT;
+			*out_sz = bytes * PKI_MOD_ADD_OUTPUT_OP_COUNT;
+			break;
+		case PKI_DESC_OPTYPE_ECC_POINTMUL:
+			*in_sz = bytes * PKI_ECC_POINTMUL_INPUT_OP_COUNT;
+			*out_sz = bytes * PKI_ECC_POINTMUL_OUTPUT_OP_COUNT;
+			break;
 		default:
 			break;
 	}
@@ -140,34 +153,37 @@ static TEE_Result pki_build_descriptors(uint32_t curve, uint32_t op, uint32_t *d
 {
 	size_t in_sz = 0;
 	size_t out_sz = 0;
+	uint32_t opsize = 0;
+	uint32_t selcurve = 0;
 
 	pki_get_opsize(curve, op, &in_sz, &out_sz);
 
-	descs[0] = PKI_DESC_TAG_START;
-
 	switch (curve) {
 		case TEE_ECC_CURVE_NIST_P256:
-			descs[1] = PKI_DESC_TAG_START_CMD(
-				op, PKI_DESC_OPSIZE_P256, PKI_DESC_SELCURVE_P256,
-				PKI_DESC_ECC_FIELD_GFP);
+			opsize = PKI_DESC_OPSIZE_P256;
+			selcurve = PKI_DESC_SELCURVE_P256;
 			break;
 
 		case TEE_ECC_CURVE_NIST_P384:
-			descs[1] = PKI_DESC_TAG_START_CMD(
-				op, PKI_DESC_OPSIZE_P384, PKI_DESC_SELCURVE_P384,
-				PKI_DESC_ECC_FIELD_GFP);
+			opsize = PKI_DESC_OPSIZE_P384;
+			selcurve = PKI_DESC_SELCURVE_P384;
 			break;
 
 		case TEE_ECC_CURVE_NIST_P521:
-			descs[1] = PKI_DESC_TAG_START_CMD(
-				op, PKI_DESC_OPSIZE_P521, PKI_DESC_SELCURVE_P521,
-				PKI_DESC_ECC_FIELD_GFP);
+			opsize = PKI_DESC_OPSIZE_P521;
+			selcurve = PKI_DESC_SELCURVE_P521;
 			break;
 
 		default:
 			return TEE_ERROR_NOT_SUPPORTED;
 	}
 
+	/* SelCurve must be zero for ModAdd */
+	if (op == PKI_DESC_OPTYPE_MOD_ADD)
+		selcurve = 0;
+
+	descs[0] = PKI_DESC_TAG_START;
+	descs[1] = PKI_DESC_TAG_START_CMD(op, opsize, selcurve, PKI_DESC_ECC_FIELD_GFP);
 	descs[2] = PKI_DESC_TAG_TFRI(in_sz);
 	descs[3] = 0;
 	descs[4] = PKI_DESC_TAG_TFRO(out_sz);
@@ -397,6 +413,224 @@ TEE_Result versal_ecc_sign_ephemeral(uint32_t algo, size_t bytes,
 
 	memcpy_swp(sig, versal_pki.rq_out, bytes);
 	memcpy_swp(sig + bytes, versal_pki.rq_out + bytes, bytes);
+
+	/* Clear memory */
+	memset(versal_pki.rq_in, 0, PKI_QUEUE_BUF_SIZE);
+	memset(versal_pki.rq_out, 0, PKI_QUEUE_BUF_SIZE);
+	memset(versal_pki.cq, 0, PKI_QUEUE_BUF_SIZE);
+
+	return ret;
+}
+
+static const uint8_t Order_P256[] = {
+	0x51, 0x25, 0x63, 0xfc, 0xc2, 0xca, 0xb9, 0xf3,
+	0x84, 0x9e, 0x17, 0xa7, 0xad, 0xfa, 0xe6, 0xbc,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0x00, 0x00, 0x00, 0x00, 0xff, 0xff, 0xff, 0xff,
+};
+
+static const uint8_t Order_P384[] = {
+	0x73, 0x29, 0xc5, 0xcc, 0x6a, 0x19, 0xec, 0xec,
+	0x7a, 0xa7, 0xb0, 0x48, 0xb2, 0x0d, 0x1a, 0x58,
+	0xdf, 0x2d, 0x37, 0xf4, 0x81, 0x4d, 0x63, 0xc7,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+};
+
+static const uint8_t Order_P521[] = {
+	0x09, 0x64, 0x38, 0x91, 0x1e, 0xb7, 0x6f, 0xbb,
+	0xae, 0x47, 0x9c, 0x89, 0xb8, 0xc9, 0xb5, 0x3b,
+	0xd0, 0xa5, 0x09, 0xf7, 0x48, 0x01, 0xcc, 0x7f,
+	0x6b, 0x96, 0x2f, 0xbf, 0x83, 0x87, 0x86, 0x51,
+	0xfa, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+	0xff, 0x01
+};
+
+static const uint8_t EcdsaGpoint_P256_Gx[] = {
+	0x96, 0xc2, 0x98, 0xd8, 0x45, 0x39, 0xa1, 0xf4,
+	0xa0, 0x33, 0xeb, 0x2d, 0x81, 0x7d, 0x03, 0x77,
+	0xf2, 0x40, 0xa4, 0x63, 0xe5, 0xe6, 0xbc, 0xf8,
+	0x47, 0x42, 0x2c, 0xe1, 0xf2, 0xd1, 0x17, 0x6b
+};
+
+static const uint8_t EcdsaGpoint_P256_Gy[] = {
+	0xf5, 0x51, 0xbf, 0x37, 0x68, 0x40, 0xb6, 0xcb,
+	0xce, 0x5e, 0x31, 0x6b, 0x57, 0x33, 0xce, 0x2b,
+	0x16, 0x9e, 0x0f, 0x7c, 0x4a, 0xeb, 0xe7, 0x8e,
+	0x9b, 0x7f, 0x1a, 0xfe, 0xe2, 0x42, 0xe3, 0x4f
+};
+
+static const uint8_t EcdsaGpoint_P384_Gx[] = {
+	0xb7, 0x0a, 0x76, 0x72, 0x38, 0x5e, 0x54, 0x3a,
+	0x6c, 0x29, 0x55, 0xbf, 0x5d, 0xf2, 0x02, 0x55,
+	0x38, 0x2a, 0x54, 0x82, 0xe0, 0x41, 0xf7, 0x59,
+	0x98, 0x9b, 0xa7, 0x8b, 0x62, 0x3b, 0x1d, 0x6e,
+	0x74, 0xad, 0x20, 0xf3, 0x1e, 0xc7, 0xb1, 0x8e,
+	0x37, 0x05, 0x8b, 0xbe, 0x22, 0xca, 0x87, 0xaa
+};
+
+static const uint8_t EcdsaGpoint_P384_Gy[] = {
+	0x5f, 0x0e, 0xea, 0x90, 0x7c, 0x1d, 0x43, 0x7a,
+	0x9d, 0x81, 0x7e, 0x1d, 0xce, 0xb1, 0x60, 0x0a,
+	0xc0, 0xb8, 0xf0, 0xb5, 0x13, 0x31, 0xda, 0xe9,
+	0x7c, 0x14, 0x9a, 0x28, 0xbd, 0x1d, 0xf4, 0xf8,
+	0x29, 0xdc, 0x92, 0x92, 0xbf, 0x98, 0x9e, 0x5d,
+	0x6f, 0x2c, 0x26, 0x96, 0x4a, 0xde, 0x17, 0x36
+};
+
+static const uint8_t EcdsaGpoint_P521_Gx[] = {
+	0x66, 0xbd, 0xe5, 0xc2, 0x31, 0x7e, 0x7e, 0xf9,
+	0x9b, 0x42, 0x6a, 0x85, 0xc1, 0xb3, 0x48, 0x33,
+	0xde, 0xa8, 0xff, 0xa2, 0x27, 0xc1, 0x1d, 0xfe,
+	0x28, 0x59, 0xe7, 0xef, 0x77, 0x5e, 0x4b, 0xa1,
+	0xba, 0x3d, 0x4d, 0x6b, 0x60, 0xaf, 0x28, 0xf8,
+	0x21, 0xb5, 0x3f, 0x05, 0x39, 0x81, 0x64, 0x9c,
+	0x42, 0xb4, 0x95, 0x23, 0x66, 0xcb, 0x3e, 0x9e,
+	0xcd, 0xe9, 0x04, 0x04, 0xb7, 0x06, 0x8e, 0x85,
+	0xc6, 0x00
+};
+
+static const uint8_t EcdsaGpoint_P521_Gy[] = {
+	0x50, 0x66, 0xd1, 0x9f, 0x76, 0x94, 0xbe, 0x88,
+	0x40, 0xc2, 0x72, 0xa2, 0x86, 0x70, 0x3c, 0x35,
+	0x61, 0x07, 0xad, 0x3f, 0x01, 0xb9, 0x50, 0xc5,
+	0x40, 0x26, 0xf4, 0x5e, 0x99, 0x72, 0xee, 0x97,
+	0x2c, 0x66, 0x3e, 0x27, 0x17, 0xbd, 0xaf, 0x17,
+	0x68, 0x44, 0x9b, 0x57, 0x49, 0x44, 0xf5, 0x98,
+	0xd9, 0x1b, 0x7d, 0x2c, 0xb4, 0x5f, 0x8a, 0x5c,
+	0x04, 0xc0, 0x3b, 0x9a, 0x78, 0x6a, 0x29, 0x39,
+	0x18, 0x01
+};
+
+static TEE_Result versal_ecc_gen_private_key(uint32_t curve, uint8_t *priv, size_t bytes)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	const uint8_t *order;
+	uintptr_t addr = (uintptr_t)versal_pki.rq_in;
+
+	switch (curve) {
+		case TEE_ECC_CURVE_NIST_P256:
+			order = Order_P256;
+			break;
+		case TEE_ECC_CURVE_NIST_P384:
+			order = Order_P384;
+			break;
+		case TEE_ECC_CURVE_NIST_P521:
+			order = Order_P521;
+			break;
+		default:
+			return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	ret = hw_get_random_bytes(priv, bytes);
+	if (ret)
+		return ret;
+
+	/* Copy curve order N */
+	memcpy((uint8_t *)addr, order, bytes);
+	addr += bytes;
+
+	/* Copy A = priv */
+	memcpy((uint8_t *)addr, priv, bytes);
+	addr += bytes;
+
+	/* Copy B = 1 */
+	memset((uint8_t *)addr, 1, 1);
+	memset((uint8_t *)addr + 1, 0, bytes - 1);
+	addr += bytes;
+
+	/* Build descriptors */
+	ret = pki_build_descriptors(curve, PKI_DESC_OPTYPE_MOD_ADD,
+		(uint32_t *)addr);
+	if (ret)
+		return ret;
+
+	/* Use PKI engine to compute A+B mod N */
+	ret = pki_start_operation(PKI_NEW_REQUEST_MASK & (addr + 1));
+	if (ret)
+		return ret;
+
+	ret = pki_check_status();
+	if (ret)
+		return ret;
+
+	/* Copy back result */
+	memcpy(priv, versal_pki.rq_out, bytes);
+
+	return ret;
+}
+
+TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	size_t bytes;
+	size_t bits;
+	uint8_t priv[TEE_SHA512_HASH_SIZE + 2];
+	const uint8_t *Gx;
+	const uint8_t *Gy;
+	uintptr_t addr = (uintptr_t)versal_pki.rq_in;
+
+	ret = versal_ecc_get_key_size(s->curve, &bytes, &bits);
+	if (ret)
+		return ret;
+
+	/* Generate private key */
+	ret = versal_ecc_gen_private_key(s->curve, priv, bytes);
+	if (ret)
+		return ret;
+
+	switch (s->curve) {
+		case TEE_ECC_CURVE_NIST_P256:
+			Gx = EcdsaGpoint_P256_Gx;
+			Gy = EcdsaGpoint_P256_Gy;
+			break;
+		case TEE_ECC_CURVE_NIST_P384:
+			Gx = EcdsaGpoint_P384_Gx;
+			Gy = EcdsaGpoint_P384_Gy;
+			break;
+		case TEE_ECC_CURVE_NIST_P521:
+			Gx = EcdsaGpoint_P521_Gx;
+			Gy = EcdsaGpoint_P521_Gy;
+			break;
+		default:
+			return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	/* Copy private key */
+	memcpy((uint8_t *)addr, priv, bytes);
+	addr += bytes;
+
+	/* Copy generator point x coordinate */
+	memcpy((uint8_t *)addr, Gx, bytes);
+	addr += bytes;
+
+	/* Copy generator point y coordinate */
+	memcpy((uint8_t *)addr, Gy, bytes);
+	addr += bytes;
+
+	/* Build descriptors */
+	ret = pki_build_descriptors(s->curve, PKI_DESC_OPTYPE_ECC_POINTMUL,
+		(uint32_t *)addr);
+	if (ret)
+		return ret;
+
+	/* Use PKI engine to compute Q = priv * G */
+	ret = pki_start_operation(PKI_NEW_REQUEST_MASK & (addr + 1));
+	if (ret)
+		return ret;
+
+	ret = pki_check_status();
+	if (ret)
+		return ret;
+
+	/* Copy private and public keys back */
+	crypto_bignum_bin2bn_eswap(priv, bytes, s->d);
+	crypto_bignum_bin2bn_eswap(versal_pki.rq_out, bytes, s->x);
+	crypto_bignum_bin2bn_eswap(versal_pki.rq_out + bytes, bytes, s->y);
 
 	/* Clear memory */
 	memset(versal_pki.rq_in, 0, PKI_QUEUE_BUF_SIZE);
