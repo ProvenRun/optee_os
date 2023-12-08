@@ -59,11 +59,11 @@ $(call force, CFG_WITH_SOFTWARE_PRNG,n)
 
 ifeq ($(PLATFORM_FLAVOR),adaptative)
 $(call force,CFG_VERSAL_RNG_PLM,y)
-else
+endif
+
 # TRNG configuration
 CFG_VERSAL_TRNG_SEED_LIFE ?= 3
 CFG_VERSAL_TRNG_DF_MUL ?= 2
-endif
 
 # eFuse and BBRAM driver
 $(call force, CFG_VERSAL_NVM,y)

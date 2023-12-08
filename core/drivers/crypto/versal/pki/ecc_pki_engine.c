@@ -19,6 +19,48 @@
 #include <util.h>
 #include <io.h>
 #include <config.h>
+#include <drivers/versal_trng.h>
+
+/* PKI Engine TRNG driver */
+#define TRNG_BASE            0x20400051000
+#define TRNG_SIZE            0x10000
+
+static struct versal_trng ecc_pki_trng = {
+	.cfg.base = TRNG_BASE,
+	.cfg.len = TRNG_SIZE,
+};
+
+static TEE_Result versal_ecc_trng_init(void)
+{
+	const uint8_t pers_str[TRNG_PERS_STR_LEN] = {
+		0xB2, 0x80, 0x7E, 0x4C, 0xD0, 0xE4, 0xE2, 0xA9,
+		0x2F, 0x1F, 0x5D, 0xC1, 0xA2, 0x1F, 0x40, 0xFC,
+		0x1F, 0x24, 0x5D, 0x42, 0x61, 0x80, 0xE6, 0xE9,
+		0x71, 0x05, 0x17, 0x5B, 0xAF, 0x70, 0x30, 0x18,
+		0xBC, 0x23, 0x18, 0x15, 0xCB, 0xB8, 0xA6, 0x3E,
+		0x83, 0xB8, 0x4A, 0xFE, 0x38, 0xFC, 0x25, 0x87,
+	};
+
+	/* configure in hybrid mode with derivative function enabled */
+	struct trng_usr_cfg usr_cfg = {
+		.mode = TRNG_HRNG,
+		.seed_life = CFG_VERSAL_TRNG_SEED_LIFE,
+		.predict_en = false,
+		.df_disable = false,
+		.dfmul = CFG_VERSAL_TRNG_DF_MUL,
+		.iseed_en =  false,
+		.pstr_en = true,
+	};
+
+	memcpy(usr_cfg.pstr, pers_str, TRNG_PERS_STR_LEN);
+
+	return versal_trng_hw_init(&ecc_pki_trng, &usr_cfg);
+}
+
+static TEE_Result versal_ecc_trng_get_random_bytes(void *buf, size_t len)
+{
+	return versal_trng_get_random_bytes(&ecc_pki_trng, buf, len);
+}
 
 #define FPD_PKI_CRYPTO_BASEADDR			0x20400000000
 #define FPD_PKI_CTRLSTAT_BASEADDR		0x20400050000
@@ -526,7 +568,7 @@ static TEE_Result versal_ecc_gen_private_key(uint32_t curve, uint8_t *priv, size
 			return TEE_ERROR_NOT_SUPPORTED;
 	}
 
-	ret = hw_get_random_bytes(priv, bytes);
+	ret = versal_ecc_trng_get_random_bytes(priv, bytes);
 	if (ret)
 		return ret;
 
@@ -725,6 +767,10 @@ static TEE_Result versal_pki_config_cm(void)
 TEE_Result versal_ecc_hw_init(void)
 {
 	TEE_Result ret;
+
+	ret = versal_ecc_trng_init();
+	if (ret != TEE_SUCCESS)
+		return ret;
 
 	ret = versal_pki_engine_slcr_config();
 	if (ret != TEE_SUCCESS)
