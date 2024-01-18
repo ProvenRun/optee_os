@@ -775,10 +775,6 @@ TEE_Result versal_ecc_hw_init(void)
 {
 	TEE_Result ret;
 
-	ret = versal_ecc_trng_init();
-	if (ret != TEE_SUCCESS)
-		return ret;
-
 	ret = versal_pki_engine_slcr_config();
 	if (ret != TEE_SUCCESS)
 		return ret;
@@ -788,6 +784,10 @@ TEE_Result versal_ecc_hw_init(void)
 		return ret;
 
 	ret = versal_pki_config_cm();
+	if (ret != TEE_SUCCESS)
+		return ret;
+
+	ret = versal_ecc_trng_init();
 	if (ret != TEE_SUCCESS)
 		return ret;
 
