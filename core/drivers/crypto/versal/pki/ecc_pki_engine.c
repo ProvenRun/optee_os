@@ -715,6 +715,7 @@ static TEE_Result versal_pki_engine_reset(void)
 #define FPD_SLCR_PKI_MUX_SEL_OFFSET		0x00002000
 
 #define FPD_CLEAR_WRITE_PROTECT 		0
+#define FPD_ENABLE_WRITE_PROTECT 		1
 
 #define PKI_MUX_SEL_MASK				0x00000001
 #define PKI_MUX_SELECT					0x00000001
@@ -735,6 +736,10 @@ static TEE_Result versal_pki_engine_slcr_config(void)
 	/* PKI mux selection */
 	io_mask32(fpd_slcr + FPD_SLCR_PKI_MUX_SEL_OFFSET,
 				  PKI_MUX_SELECT, PKI_MUX_SEL_MASK);
+
+	/* Re-enable FPD SCLR write protect */
+	io_write32(fpd_slcr + FPD_SLCR_WPROT0_OFFSET,
+					  FPD_ENABLE_WRITE_PROTECT);
 
 	core_mmu_remove_mapping(MEM_AREA_IO_SEC,
 					  (void *)fpd_slcr, FPD_SLCR_SIZE);
