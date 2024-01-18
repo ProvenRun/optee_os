@@ -6,7 +6,11 @@ CFG_MMAP_REGIONS ?= 24
 
 $(call force,CFG_SECURE_TIME_SOURCE_CNTPCT,y)
 $(call force,CFG_WITH_ARM_TRUSTED_FW,y)
+ifeq ($(PLATFORM_FLAVOR),adaptative)
+$(call force,CFG_TEE_CORE_NB_CORE,16)
+else
 $(call force,CFG_TEE_CORE_NB_CORE,2)
+endif
 $(call force,CFG_ARM_GICV3,y)
 $(call force,CFG_PL011,y)
 $(call force,CFG_GIC,y)
