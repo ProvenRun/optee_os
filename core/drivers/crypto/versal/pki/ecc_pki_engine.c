@@ -686,6 +686,7 @@ TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s)
 #define PSX_CRF_RST_PKI			0xEC200340
 
 #define PKI_ASSERT_RESET		1
+#define PKI_DEASSERT_RESET		0
 
 static TEE_Result versal_pki_engine_reset(void)
 {
@@ -699,7 +700,7 @@ static TEE_Result versal_pki_engine_reset(void)
 
 	io_write32(reset, PKI_ASSERT_RESET);
 	udelay(PKI_RESET_DELAY_US);
-	io_write32(reset, PKI_ASSERT_RESET);
+	io_write32(reset, PKI_DEASSERT_RESET);
 
 	core_mmu_remove_mapping(MEM_AREA_IO_SEC,
 					  (void *)reset, SMALL_PAGE_SIZE);
