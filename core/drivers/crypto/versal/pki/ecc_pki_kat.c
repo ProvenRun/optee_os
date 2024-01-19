@@ -357,7 +357,7 @@ static TEE_Result versal_ecc_verify_kat(uint32_t curve)
 		return ret;
 
 	/* Prepare public key */
-	ret = crypto_asym_alloc_ecc_public_key(&pkey, TEE_TYPE_ECDSA_KEYPAIR, bits);
+	ret = crypto_asym_alloc_ecc_public_key(&pkey, TEE_TYPE_ECDSA_PUBLIC_KEY, bits);
 	if (ret)
 		return ret;
 	pkey.curve = curve;
