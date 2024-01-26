@@ -193,7 +193,10 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		for (i = 0; i < ARRAY_SIZE(key_data); i++)
 			key_data[i] = TEE_U32_BSWAP(key_data[i]);
 
-		versal_mbox_alloc(key_len, key_data, &p);
+		ret = versal_mbox_alloc(key_len, key_data, &p);
+		if (ret)
+			return ret;
+
 		cmd.data[0] = API_ID(VERSAL_AES_WRITE_KEY);
 		cmd.data[1] = VERSAL_AES_KEY_SIZE_256;
 		cmd.data[2] = key_id;
@@ -213,8 +216,15 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	/* Trace indication that it is safe to generate a RPMB key */
 	IMSG("Using %s HUK", secure ? "Production" : "Development");
 
-	versal_mbox_alloc(sizeof(*init), NULL, &init_buf);
-	versal_mbox_alloc(nce_len, nce_data, &p);
+	ret = versal_mbox_alloc(sizeof(*init), NULL, &init_buf);
+	if (ret)
+		return ret;
+	ret = versal_mbox_alloc(nce_len, nce_data, &p);
+	if (ret) {
+		free(init_buf.buf);
+		return ret;
+	}
+
 	init = init_buf.buf;
 	init->operation = VERSAL_AES_GCM_ENCRYPT;
 	init->key_len = VERSAL_AES_KEY_SIZE_256;
@@ -234,7 +244,10 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	if (ret)
 		return ret;
 
-	versal_mbox_alloc(aad_len, aad_data, &p);
+	ret = versal_mbox_alloc(aad_len, aad_data, &p);
+	if (ret)
+		return ret;
+
 	cmd.data[0] = API_ID(VERSAL_AES_UPDATE_AAD);
 	reg_pair_from_64(virt_to_phys(p.buf), &cmd.data[2], &cmd.data[1]);
 	if (p.len % 16)
@@ -251,9 +264,21 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	if (ret)
 		return ret;
 
-	versal_mbox_alloc(sizeof(*input), NULL, &input_cmd);
-	versal_mbox_alloc(src_len, src, &p);
-	versal_mbox_alloc(dst_len, NULL, &q);
+	ret = versal_mbox_alloc(sizeof(*input), NULL, &input_cmd);
+	if (ret)
+		return ret;
+	ret = versal_mbox_alloc(src_len, src, &p);
+	if (ret) {
+		free(input_cmd.buf);
+		return ret;
+	}
+	ret = versal_mbox_alloc(dst_len, NULL, &q);
+	if (ret) {
+		free(input_cmd.buf);
+		free(p.buf);
+		return ret;
+	}
+
 	input = input_cmd.buf;
 	input->input_addr = virt_to_phys(p.buf);
 	input->input_len = p.len;
@@ -276,7 +301,9 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 	if (ret)
 		return ret;
 
-	versal_mbox_alloc(16, NULL, &p);
+	ret = versal_mbox_alloc(16, NULL, &p);
+	if (ret)
+		return ret;
 	cmd.data[0] = API_ID(VERSAL_AES_ENCRYPT_FINAL);
 	reg_pair_from_64(virt_to_phys(p.buf), &cmd.data[2], &cmd.data[1]);
 	if (versal_mbox_notify_pmc(&cmd, NULL, NULL)) {

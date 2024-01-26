@@ -343,7 +343,9 @@ static TEE_Result do_init(struct drvcrypt_authenc_init *dinit)
 	}
 
 	/* Write the key */
-	versal_mbox_alloc(dinit->key.length, dinit->key.data, &key);
+	ret = versal_mbox_alloc(dinit->key.length, dinit->key.data, &key);
+	if (ret)
+		return ret;
 
 	arg.data[arg.dlen++] = key_len;
 	arg.data[arg.dlen++] = engine.key_src;
@@ -358,8 +360,12 @@ static TEE_Result do_init(struct drvcrypt_authenc_init *dinit)
 	memset(&arg, 0, sizeof(arg));
 
 	/* Send the initialization structure */
-	versal_mbox_alloc(sizeof(*init), NULL, &init_buf);
-	versal_mbox_alloc(dinit->nonce.length, dinit->nonce.data, &nonce);
+	ret = versal_mbox_alloc(sizeof(*init), NULL, &init_buf);
+	if (ret)
+		goto out1;
+	ret = versal_mbox_alloc(dinit->nonce.length, dinit->nonce.data, &nonce);
+	if (ret)
+		goto out2;
 
 	init = init_buf.buf;
 	init->iv_addr = virt_to_phys(nonce.buf);
@@ -400,9 +406,11 @@ static TEE_Result do_init(struct drvcrypt_authenc_init *dinit)
 
 	return TEE_SUCCESS;
 error:
-	free(key.buf);
-	free(init_buf.buf);
 	free(nonce.buf);
+out2:
+	free(init_buf.buf);
+out1:
+	free(key.buf);
 
 	return ret;
 }
@@ -427,7 +435,9 @@ static TEE_Result do_update_aad(struct drvcrypt_authenc_update_aad *dupdate)
 	if (engine.state == FINALIZED)
 		do_replay();
 
-	versal_mbox_alloc(dupdate->aad.length, dupdate->aad.data, &p);
+	ret = versal_mbox_alloc(dupdate->aad.length, dupdate->aad.data, &p);
+	if (ret)
+		return ret;
 
 	arg.data[arg.dlen++] = p.len % 16 ? p.alloc_len : p.len;
 	arg.ibuf[0].mem = p;
@@ -481,9 +491,15 @@ update_payload(struct drvcrypt_authenc_update_payload *dupdate, bool is_last)
 		return TEE_ERROR_BAD_PARAMETERS;
 	}
 
-	versal_mbox_alloc(dupdate->src.length, dupdate->src.data, &p);
-	versal_mbox_alloc(dupdate->dst.length, NULL, &q);
-	versal_mbox_alloc(sizeof(*input), NULL, &input_cmd);
+	ret = versal_mbox_alloc(dupdate->src.length, dupdate->src.data, &p);
+	if (ret)
+		return ret;
+	ret = versal_mbox_alloc(dupdate->dst.length, NULL, &q);
+	if (ret)
+		goto out1;
+	ret = versal_mbox_alloc(sizeof(*input), NULL, &input_cmd);
+	if (ret)
+		goto out2;
 
 	input = input_cmd.buf;
 	input->input_addr = virt_to_phys(p.buf);
@@ -505,7 +521,7 @@ update_payload(struct drvcrypt_authenc_update_payload *dupdate, bool is_last)
 	if (versal_crypto_request(id, &arg, &err)) {
 		EMSG("AES_UPDATE_PAYLOAD error: %s", versal_aes_error(err));
 		ret = TEE_ERROR_GENERIC;
-		goto out;
+		goto error;
 	}
 
 	if (dupdate->dst.data)
@@ -515,7 +531,7 @@ update_payload(struct drvcrypt_authenc_update_payload *dupdate, bool is_last)
 		node = calloc(1, sizeof(*node));
 		if (!node) {
 			ret = TEE_ERROR_OUT_OF_MEMORY;
-			goto out;
+			goto error;
 		}
 
 		node->is_aad = false;
@@ -527,10 +543,12 @@ update_payload(struct drvcrypt_authenc_update_payload *dupdate, bool is_last)
 
 		return TEE_SUCCESS;
 	}
-out:
-	free(p.buf);
-	free(q.buf);
+error:
 	free(input_cmd.buf);
+out2:
+	free(q.buf);
+out1:
+	free(p.buf);
 
 	return ret;
 }
@@ -594,7 +612,9 @@ static TEE_Result do_enc_final(struct drvcrypt_authenc_final *dfinal)
 
 	memcpy(dfinal->dst.data, last.dst.data, dfinal->dst.length);
 
-	versal_mbox_alloc(GCM_TAG_LEN, NULL, &p);
+	ret = versal_mbox_alloc(GCM_TAG_LEN, NULL, &p);
+	if (ret)
+		return ret;
 
 	arg.ibuf[0].mem = p;
 	if (versal_crypto_request(VERSAL_AES_ENCRYPT_FINAL, &arg, &err)) {
@@ -646,7 +666,10 @@ static TEE_Result do_dec_final(struct drvcrypt_authenc_final *dfinal)
 	if (ret)
 		return ret;
 
-	versal_mbox_alloc(dfinal->tag.length, dfinal->tag.data, &p);
+	ret = versal_mbox_alloc(dfinal->tag.length, dfinal->tag.data, &p);
+	if (ret)
+		return ret;
+
 	arg.ibuf[0].mem = p;
 
 	if (versal_crypto_request(VERSAL_AES_DECRYPT_FINAL, &arg, &err)) {
