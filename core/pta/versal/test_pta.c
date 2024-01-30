@@ -131,7 +131,7 @@ static TEE_Result test_puf(void)
 	return ret;
 }
 
-static TEE_Result test_pki(void)
+static TEE_Result test_pki(uint32_t curve)
 {
 	struct ecc_keypair key;
 	struct ecc_public_key pkey;
@@ -140,23 +140,50 @@ static TEE_Result test_pki(void)
 	uint8_t msg[TEE_SHA512_HASH_SIZE] = { };
 	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2] = { };
 
+	size_t bytes;
+	size_t bits;
+	uint32_t algo;
 	size_t len = (TEE_SHA512_HASH_SIZE + 2) * 2;
 
-	ret = crypto_acipher_alloc_ecc_keypair(&key, TEE_TYPE_ECDSA_KEYPAIR, 521);
+	switch (curve) {
+		case TEE_ECC_CURVE_NIST_P256:
+			bits = 256;
+			bytes = 32;
+			algo = TEE_ALG_ECDSA_SHA256;
+			break;
+
+		case TEE_ECC_CURVE_NIST_P384:
+			bits = 384;
+			bytes = 48;
+			algo = TEE_ALG_ECDSA_SHA384;
+			break;
+
+		case TEE_ECC_CURVE_NIST_P521:
+			bits = 521;
+			bytes = 66;
+			algo = TEE_ALG_ECDSA_SHA512;
+			break;
+
+		default:
+			return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	len = bytes * 2;
+
+	ret = crypto_acipher_alloc_ecc_keypair(&key, TEE_TYPE_ECDSA_KEYPAIR, bits);
 	if (ret) {
 		DMSG("Error allocating ECDSA keypair 0x%" PRIx32, ret);
 		return ret;
 	}
-	key.curve = TEE_ECC_CURVE_NIST_P521;
+	key.curve = curve;
 
-	ret = crypto_acipher_gen_ecc_key(&key, 521);
+	ret = crypto_acipher_gen_ecc_key(&key, bits);
 	if (ret) {
 		DMSG("Error generating ECDSA keypair 0x%" PRIx32, ret);
 		goto error;
 	}
 
-	ret = crypto_acipher_ecc_sign(TEE_ALG_ECDSA_SHA512, &key,
-				  msg, TEE_SHA512_HASH_SIZE, sig, &len);
+	ret = crypto_acipher_ecc_sign(algo, &key, msg, bytes, sig, &len);
 	if (ret) {
 		DMSG("Error signing message 0x%" PRIx32, ret);
 		goto error;
@@ -168,7 +195,7 @@ static TEE_Result test_pki(void)
 	 * easily, so let's allocate a dummy public key then modify it
 	 * to match our previously generated private key.
 	 */
-	ret = crypto_acipher_alloc_ecc_public_key(&pkey, TEE_TYPE_ECDSA_PUBLIC_KEY, 521);
+	ret = crypto_acipher_alloc_ecc_public_key(&pkey, TEE_TYPE_ECDSA_PUBLIC_KEY, bits);
 	if (ret) {
 		DMSG("Error allocating ECDSA public key 0x%" PRIx32, ret);
 		goto error;
@@ -180,8 +207,7 @@ static TEE_Result test_pki(void)
 	pkey.y = key.y;
 	pkey.curve = key.curve;
 
-	ret = crypto_acipher_ecc_verify(TEE_ALG_ECDSA_SHA512, &pkey,
-				  msg, TEE_SHA512_HASH_SIZE, sig, len);
+	ret = crypto_acipher_ecc_verify(algo, &pkey, msg, bytes, sig, bytes * 2);
 	if (ret)
 		DMSG("Error verifying signature 0x%" PRIx32, ret);
 
@@ -195,15 +221,12 @@ error:
 static TEE_Result invokeCommandEntryPoint(void *sess_ctx __unused,
 					  uint32_t cmd_id,
 					  uint32_t param_types,
-					  TEE_Param params[TEE_NUM_PARAMS] __unused)
+					  TEE_Param params[TEE_NUM_PARAMS])
 {
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE,
+	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE);
-
-	if (param_types != exp_param_types)
-		return TEE_ERROR_BAD_PARAMETERS;
 
 	switch (cmd_id) {
 		case VERSAL_TEST_PTA_TEST_PMC_GPIO:
@@ -215,7 +238,9 @@ static TEE_Result invokeCommandEntryPoint(void *sess_ctx __unused,
 		case VERSAL_TEST_PTA_TEST_PUF:
 			return test_puf();
 		case VERSAL_TEST_PTA_TEST_PKI:
-			return test_pki();
+			if (param_types != exp_param_types)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return test_pki(params[0].value.a);
 		default:
 			return TEE_ERROR_BAD_PARAMETERS;
 	}
