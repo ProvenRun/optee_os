@@ -37,9 +37,7 @@ register_phys_mem_pgdir(MEM_AREA_IO_SEC,
 register_phys_mem_pgdir(MEM_AREA_IO_SEC,
 			GIC_BASE + GICD_OFFSET, CORE_MMU_PGDIR_SIZE);
 
-#if defined(PLATFORM_CONFIG_generic)
 register_phys_mem(MEM_AREA_IO_SEC, PLM_RTCA, PLM_RTCA_LEN);
-#endif
 
 register_ddr(DRAM0_BASE, DRAM0_SIZE);
 
@@ -62,11 +60,9 @@ void console_init(void)
 
 static TEE_Result platform_banner(void)
 {
-#if defined(PLATFORM_FLAVOR_generic)
 	vaddr_t plm_rtca = (vaddr_t)phys_to_virt(PLM_RTCA, MEM_AREA_IO_SEC,
 						 PLM_RTCA_LEN);
 	assert(plm_rtca);
-#endif
 	const char *ahwrot_str = "OFF";
 	const char *shwrot_str = "OFF";
 	uint8_t version = 0;
@@ -79,13 +75,11 @@ static TEE_Result platform_banner(void)
 
 	IMSG("Platform Versal:\tSilicon Revision v%"PRIu8, version);
 
-#if defined(PLATFORM_FLAVOR_generic)
 	if (io_read32(plm_rtca + VERSAL_AHWROT_REG) == VERSAL_AHWROT_SECURED)
 		ahwrot_str = "ON";
 
 	if (io_read32(plm_rtca + VERSAL_SHWROT_REG) == VERSAL_SHWROT_SECURED)
 		shwrot_str = "ON";
-#endif
 
 	IMSG("Hardware Root of Trust: Asymmetric[%s], Symmetric[%s]",
 	     ahwrot_str, shwrot_str);
@@ -93,10 +87,9 @@ static TEE_Result platform_banner(void)
 	return TEE_SUCCESS;
 }
 
-#if defined(CFG_RPMB_FS)
+#if defined(CFG_RPMB_FS) && !defined(CFG_RPMB_TESTKEY)
 bool plat_rpmb_key_is_ready(void)
 {
-#if defined(PLATFORM_CONFIG_generic)
 	vaddr_t plm_rtca = (vaddr_t)phys_to_virt(PLM_RTCA, MEM_AREA_IO_SEC,
 						 PLM_RTCA_LEN);
 
@@ -107,7 +100,6 @@ bool plat_rpmb_key_is_ready(void)
 
 	if (io_read32(plm_rtca + VERSAL_SHWROT_REG) == VERSAL_SHWROT_SECURED)
 		return true;
-#endif
 
 	return false;
 }
