@@ -297,8 +297,7 @@ static TEE_Result pki_check_status(void)
 	uint32_t cq_status = io_read32((vaddr_t)versal_pki.cq);
 	uint32_t cq_value = io_read32((vaddr_t)versal_pki.cq + 4);
 
-	if ((cq_status != PKI_EXPECTED_CQ_STATUS) ||
-		(cq_value != PKI_EXPECTED_CQ_VALUE))
+	if (cq_status != PKI_EXPECTED_CQ_STATUS)
 		return TEE_ERROR_GENERIC;
 
 	return TEE_SUCCESS;
