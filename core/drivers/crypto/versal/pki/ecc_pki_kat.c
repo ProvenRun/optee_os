@@ -412,3 +412,63 @@ TEE_Result versal_ecc_kat(void)
 
 	return ret;
 }
+
+#ifdef CFG_VERSAL_PKI_PWCT
+TEE_Result versal_ecc_keypair_pwct(struct ecc_keypair *s)
+{
+	struct ecc_public_key pkey;
+	TEE_Result ret = TEE_SUCCESS;
+
+	uint32_t algo;
+	size_t bytes;
+	size_t bits;
+	size_t len;
+
+	uint8_t msg[TEE_SHA512_HASH_SIZE] = { };
+	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2] = { };
+
+	switch (s->curve) {
+		case TEE_ECC_CURVE_NIST_P256:
+			algo = TEE_ALG_ECDSA_SHA256;
+			break;
+		case TEE_ECC_CURVE_NIST_P384:
+			algo = TEE_ALG_ECDSA_SHA384;
+			break;
+		case TEE_ECC_CURVE_NIST_P521:
+			algo = TEE_ALG_ECDSA_SHA512;
+			break;
+		default:
+			return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	ret = versal_ecc_get_key_size(s->curve, &bytes, &bits);
+	if (ret)
+		return ret;
+
+	len = bytes * 2;
+
+	ret = versal_ecc_sign(algo, s, msg, bytes, sig, &len);
+	if (ret) {
+		DMSG("Error signing message 0x%" PRIx32, ret);
+		return ret;
+	}
+
+	ret = crypto_acipher_alloc_ecc_public_key(&pkey, TEE_TYPE_ECDSA_PUBLIC_KEY, bits);
+	if (ret) {
+		DMSG("Error allocating ECDSA public key 0x%" PRIx32, ret);
+		return ret;
+	}
+
+	crypto_bignum_free(pkey.x);
+	crypto_bignum_free(pkey.y);
+	pkey.x = s->x;
+	pkey.y = s->y;
+	pkey.curve = s->curve;
+
+	ret = versal_ecc_verify(algo, &pkey, msg, bytes, sig, bytes * 2);
+	if (ret)
+		DMSG("Error verifying signature 0x%" PRIx32, ret);
+
+	return ret;
+}
+#endif

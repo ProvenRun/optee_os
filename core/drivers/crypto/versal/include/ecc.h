@@ -14,6 +14,9 @@ TEE_Result versal_ecc_hw_init(void);
 TEE_Result versal_ecc_kat(void);
 
 TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s);
+#ifdef CFG_VERSAL_PKI_PWCT
+TEE_Result versal_ecc_keypair_pwct(struct ecc_keypair *s);
+#endif
 TEE_Result versal_ecc_verify(uint32_t algo, struct ecc_public_key *key,
 			 const uint8_t *msg, size_t msg_len,
 			 const uint8_t *sig, size_t sig_len);

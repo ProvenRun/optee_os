@@ -87,6 +87,7 @@ CFG_FAULT_MITIGATION ?= n
 
 ifeq ($(PLATFORM_FLAVOR),adaptative)
 CFG_VERSAL_PKI_COUNTER_MEASURES ?= n
+CFG_VERSAL_PKI_PWCT ?= y
 endif
 endif
 

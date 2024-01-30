@@ -388,7 +388,7 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 	}
 
 	ephemeral.curve = key->curve;
-	ret = crypto_acipher_gen_ecc_key(&ephemeral, bits);
+	ret = versal_ecc_gen_keypair(&ephemeral);
 	if (ret) {
 		EMSG("Versal, can't generate the ephemeral key");
 		return ret;
