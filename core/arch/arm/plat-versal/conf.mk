@@ -42,6 +42,8 @@ else
 $(call force,CFG_ARM32_core,y)
 endif
 
+CFG_VERSAL_BUILD_TEST_CODE ?= y
+
 # GPIO
 CFG_VERSAL_GPIO ?= y
 
