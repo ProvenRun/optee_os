@@ -20,10 +20,20 @@
 #define VERSAL_TEST_PTA_TEST_NVM			0x10
 #define VERSAL_TEST_PTA_TEST_PUF			0x20
 #define VERSAL_TEST_PTA_TEST_PKI			0x40
+#define VERSAL_TEST_PTA_BENCH_PKI			0x50
+#define VERSAL_TEST_PTA_BENCH_PKI_CLIENT	0x60
 
 #define GPIO_TEST_PIN_ID 			56
 
 #define BBRAM_USER_DATA				0xdeadbeef
+
+struct versal_test_pta_ctx
+{
+	struct ecc_keypair key;
+	struct ecc_public_key pkey;
+	uint8_t msg[TEE_SHA512_HASH_SIZE];
+	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2];
+};
 
 static TEE_Result test_gpio(struct versal_gpio_chip *chip)
 {
@@ -131,61 +141,231 @@ static TEE_Result test_puf(void)
 	return ret;
 }
 
-static TEE_Result test_pki(uint32_t curve)
+static TEE_Result get_ecc_params(uint32_t curve, uint32_t *algo,
+					  size_t *bytes, size_t *bits)
 {
-	struct ecc_keypair key;
-	struct ecc_public_key pkey;
-	TEE_Result ret = TEE_SUCCESS;
-
-	uint8_t msg[TEE_SHA512_HASH_SIZE] = { };
-	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2] = { };
-
-	size_t bytes;
-	size_t bits;
-	uint32_t algo;
-	size_t len = (TEE_SHA512_HASH_SIZE + 2) * 2;
+	assert(algo != NULL);
+	assert(bytes != NULL);
+	assert(bits != NULL);
 
 	switch (curve) {
 		case TEE_ECC_CURVE_NIST_P256:
-			bits = 256;
-			bytes = 32;
-			algo = TEE_ALG_ECDSA_SHA256;
+			*bits = 256;
+			*bytes = 32;
+			*algo = TEE_ALG_ECDSA_SHA256;
 			break;
 
 		case TEE_ECC_CURVE_NIST_P384:
-			bits = 384;
-			bytes = 48;
-			algo = TEE_ALG_ECDSA_SHA384;
+			*bits = 384;
+			*bytes = 48;
+			*algo = TEE_ALG_ECDSA_SHA384;
 			break;
 
 		case TEE_ECC_CURVE_NIST_P521:
-			bits = 521;
-			bytes = 66;
-			algo = TEE_ALG_ECDSA_SHA512;
+			*bits = 521;
+			*bytes = 66;
+			*algo = TEE_ALG_ECDSA_SHA512;
 			break;
 
 		default:
 			return TEE_ERROR_NOT_SUPPORTED;
 	}
 
+	return TEE_SUCCESS;
+}
+
+static TEE_Result test_pki(void *sess_ctx, uint32_t curve)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	struct versal_test_pta_ctx *ctx = sess_ctx;
+
+	size_t bytes;
+	size_t bits;
+	uint32_t algo;
+	size_t len = (TEE_SHA512_HASH_SIZE + 2) * 2;
+
+	assert(ctx != NULL);
+
+	if (ctx->key.curve != curve)
+		return TEE_ERROR_BAD_STATE;
+
+	ret = get_ecc_params(curve, &algo, &bytes, &bits);
+	if (ret)
+		return ret;
+
 	len = bytes * 2;
 
-	ret = crypto_acipher_alloc_ecc_keypair(&key, TEE_TYPE_ECDSA_KEYPAIR, bits);
-	if (ret) {
-		DMSG("Error allocating ECDSA keypair 0x%" PRIx32, ret);
-		return ret;
-	}
-	key.curve = curve;
-
-	ret = crypto_acipher_gen_ecc_key(&key, bits);
-	if (ret) {
-		DMSG("Error generating ECDSA keypair 0x%" PRIx32, ret);
-		goto error;
-	}
-
-	ret = crypto_acipher_ecc_sign(algo, &key, msg, bytes, sig, &len);
+	ret = crypto_acipher_ecc_sign(algo, &ctx->key, ctx->msg, bytes, ctx->sig, &len);
 	if (ret) {
 		DMSG("Error signing message 0x%" PRIx32, ret);
+		return ret;
+	}
+
+	ret = crypto_acipher_ecc_verify(algo, &ctx->pkey, ctx->msg, bytes, ctx->sig, bytes * 2);
+	if (ret)
+		DMSG("Error verifying signature 0x%" PRIx32, ret);
+
+	return ret;
+}
+
+#define OP_SIGN 	0
+#define OP_VERIFY	1
+
+static TEE_Result bench_pki_client(void *sess_ctx, uint32_t curve, uint32_t op)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	struct versal_test_pta_ctx *ctx = sess_ctx;
+	size_t bytes;
+	size_t bits;
+	uint32_t algo;
+	size_t len = (TEE_SHA512_HASH_SIZE + 2) * 2;
+
+	assert(ctx != NULL);
+
+	if (ctx->key.curve != curve)
+		return TEE_ERROR_BAD_STATE;
+
+	ret = get_ecc_params(curve, &algo, &bytes, &bits);
+	if (ret)
+		return ret;
+
+	len = bytes * 2;
+
+	switch (op) {
+		case OP_SIGN:
+			ret = crypto_acipher_ecc_sign(algo, &ctx->key, ctx->msg, bytes, ctx->sig, &len);
+			break;
+		case OP_VERIFY:
+			ret = crypto_acipher_ecc_verify(algo, &ctx->pkey, ctx->msg, bytes, ctx->sig, bytes * 2);
+			break;
+		default:
+			return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	return ret;
+}
+
+static TEE_Result bench_pki(void *sess_ctx, uint32_t curve, uint32_t op, uint32_t *millis)
+{
+	TEE_Time start, end;
+	TEE_Result ret = TEE_SUCCESS;
+
+	assert(millis != NULL);
+
+	ret = tee_time_get_sys_time(&start);
+	if (ret) {
+		DMSG("error requesting system time (ret = 0x%" PRIx32 ")", ret);
+		return ret;
+	}
+
+	ret = bench_pki_client(sess_ctx, curve, op);
+	if (ret)
+		return ret;
+
+	ret = tee_time_get_sys_time(&end);
+	if (ret) {
+		DMSG("error requesting system time (ret = 0x%" PRIx32 ")", ret);
+		return ret;
+	}
+
+	/* Compute delta time */
+	*millis =
+		(end.seconds * 1000 + end.millis) - (start.seconds * 1000 + start.millis);
+
+	return ret;
+}
+
+#define PARAM_TYPES_NOPARAMS \
+	TEE_PARAM_TYPES(TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE, \
+					TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE)
+#define PARAM_TYPES_INPUT \
+	TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT, TEE_PARAM_TYPE_NONE, \
+					TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE)
+#define PARAM_TYPES_INOUT \
+	TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT, TEE_PARAM_TYPE_VALUE_OUTPUT, \
+					TEE_PARAM_TYPE_NONE, TEE_PARAM_TYPE_NONE)
+
+static TEE_Result invokeCommandEntryPoint(void *sess_ctx,
+					  uint32_t cmd_id,
+					  uint32_t param_types,
+					  TEE_Param params[TEE_NUM_PARAMS])
+{
+
+	switch (cmd_id) {
+		case VERSAL_TEST_PTA_TEST_PMC_GPIO:
+			if (param_types != PARAM_TYPES_NOPARAMS)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return test_pmc_gpio();
+		case VERSAL_TEST_PTA_TEST_PS_GPIO:
+			if (param_types != PARAM_TYPES_NOPARAMS)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return test_ps_gpio();
+		case VERSAL_TEST_PTA_TEST_NVM:
+			if (param_types != PARAM_TYPES_NOPARAMS)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return test_nvm();
+		case VERSAL_TEST_PTA_TEST_PUF:
+			if (param_types != PARAM_TYPES_NOPARAMS)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return test_puf();
+		case VERSAL_TEST_PTA_TEST_PKI:
+			if (param_types != PARAM_TYPES_INPUT)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return test_pki(sess_ctx, params[0].value.a);
+		case VERSAL_TEST_PTA_BENCH_PKI:
+			if (param_types != PARAM_TYPES_INOUT)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return bench_pki(sess_ctx, params[0].value.a, params[0].value.b,
+						   &params[1].value.a);
+		case VERSAL_TEST_PTA_BENCH_PKI_CLIENT:
+			if (param_types != PARAM_TYPES_INPUT)
+				return TEE_ERROR_BAD_PARAMETERS;
+			return bench_pki_client(sess_ctx, params[0].value.a,
+						   params[0].value.b);
+		default:
+			return TEE_ERROR_BAD_PARAMETERS;
+	}
+}
+
+static TEE_Result openSessionEntryPoint(uint32_t params_types,
+					   TEE_Param params[TEE_NUM_PARAMS], void **sess_ctx)
+{
+	TEE_Result ret = TEE_SUCCESS;
+	struct versal_test_pta_ctx *ctx = NULL;
+	size_t bytes;
+	size_t bits;
+	uint32_t algo;
+	uint32_t curve;
+
+	if (params_types == 0)
+		return TEE_SUCCESS;
+
+	if (params_types != PARAM_TYPES_INPUT)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	ctx = malloc(sizeof(struct versal_test_pta_ctx));
+	if (ctx == NULL)
+		return TEE_ERROR_OUT_OF_MEMORY;
+
+	curve = params[0].value.a;
+
+	ret = get_ecc_params(curve, &algo, &bytes, &bits);
+	if (ret) {
+		free(ctx);
+		return ret;
+	}
+
+	ret = crypto_acipher_alloc_ecc_keypair(&ctx->key, TEE_TYPE_ECDSA_KEYPAIR, bits);
+	if (ret) {
+		DMSG("Error allocating ECDSA keypair 0x%" PRIx32, ret);
+		free(ctx);
+		return ret;
+	}
+	ctx->key.curve = curve;
+
+	ret = crypto_acipher_gen_ecc_key(&ctx->key, bits);
+	if (ret) {
+		DMSG("Error generating ECDSA keypair 0x%" PRIx32, ret);
 		goto error;
 	}
 
@@ -195,57 +375,46 @@ static TEE_Result test_pki(uint32_t curve)
 	 * easily, so let's allocate a dummy public key then modify it
 	 * to match our previously generated private key.
 	 */
-	ret = crypto_acipher_alloc_ecc_public_key(&pkey, TEE_TYPE_ECDSA_PUBLIC_KEY, bits);
+	ret = crypto_acipher_alloc_ecc_public_key(&ctx->pkey, TEE_TYPE_ECDSA_PUBLIC_KEY, bits);
 	if (ret) {
 		DMSG("Error allocating ECDSA public key 0x%" PRIx32, ret);
 		goto error;
 	}
 
-	crypto_bignum_free(pkey.x);
-	crypto_bignum_free(pkey.y);
-	pkey.x = key.x;
-	pkey.y = key.y;
-	pkey.curve = key.curve;
+	crypto_bignum_free(ctx->pkey.x);
+	crypto_bignum_free(ctx->pkey.y);
+	ctx->pkey.x = ctx->key.x;
+	ctx->pkey.y = ctx->key.y;
+	ctx->pkey.curve = ctx->key.curve;
 
-	ret = crypto_acipher_ecc_verify(algo, &pkey, msg, bytes, sig, bytes * 2);
-	if (ret)
-		DMSG("Error verifying signature 0x%" PRIx32, ret);
+	*sess_ctx = ctx;
+	return TEE_SUCCESS;
 
 error:
-	crypto_bignum_free(key.x);
-	crypto_bignum_free(key.y);
-	crypto_bignum_free(key.d);
+	crypto_bignum_free(ctx->key.x);
+	crypto_bignum_free(ctx->key.y);
+	crypto_bignum_free(ctx->key.d);
+	free(ctx);
+
 	return ret;
 }
 
-static TEE_Result invokeCommandEntryPoint(void *sess_ctx __unused,
-					  uint32_t cmd_id,
-					  uint32_t param_types,
-					  TEE_Param params[TEE_NUM_PARAMS])
+static void closeSessionEntryPoint(void *sess_ctx)
 {
-	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE,
-						   TEE_PARAM_TYPE_NONE);
+	struct versal_test_pta_ctx *ctx = sess_ctx;
 
-	switch (cmd_id) {
-		case VERSAL_TEST_PTA_TEST_PMC_GPIO:
-			return test_pmc_gpio();
-		case VERSAL_TEST_PTA_TEST_PS_GPIO:
-			return test_ps_gpio();
-		case VERSAL_TEST_PTA_TEST_NVM:
-			return test_nvm();
-		case VERSAL_TEST_PTA_TEST_PUF:
-			return test_puf();
-		case VERSAL_TEST_PTA_TEST_PKI:
-			if (param_types != exp_param_types)
-				return TEE_ERROR_BAD_PARAMETERS;
-			return test_pki(params[0].value.a);
-		default:
-			return TEE_ERROR_BAD_PARAMETERS;
-	}
+	if (ctx == NULL)
+		return;
+
+	crypto_bignum_free(ctx->key.d);
+	crypto_bignum_free(ctx->key.x);
+	crypto_bignum_free(ctx->key.y);
+
+	free(ctx);
 }
 
 pseudo_ta_register(.uuid = VERSAL_TEST_PTA_UUID, .name = VERSAL_TEST_PTA_NAME,
 		   .flags = PTA_DEFAULT_FLAGS,
+		   .open_session_entry_point = openSessionEntryPoint,
+		   .close_session_entry_point = closeSessionEntryPoint,
 		   .invoke_command_entry_point = invokeCommandEntryPoint);
