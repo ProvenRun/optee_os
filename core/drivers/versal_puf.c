@@ -169,15 +169,15 @@ TEE_Result versal_puf_register(struct versal_puf_data *buf,
 	memcpy(buf->syndrome_data, syndrome_data_addr.buf,
 	       sizeof(buf->syndrome_data));
 
-	free(syndrome_data_addr.buf);
+	versal_mbox_free(&syndrome_data_addr);
 out4:
-	free(efuse_syn_data_addr.buf);
+	versal_mbox_free(&efuse_syn_data_addr);
 out3:
-	free(aux_addr.buf);
+	versal_mbox_free(&aux_addr);
 out2:
-	free(hash_addr.buf);
+	versal_mbox_free(&hash_addr);
 out1:
-	free(puf_id_addr.buf);
+	versal_mbox_free(&puf_id_addr);
 
 	return ret;
 }
@@ -257,15 +257,15 @@ TEE_Result versal_puf_regenerate(struct versal_puf_data *buf,
 	/* Return the updated PUF_ID */
 	memcpy(buf->puf_id, puf_id_addr.buf, sizeof(buf->puf_id));
 
-	free(syndrome_data_addr.buf);
+	versal_mbox_free(&syndrome_data_addr);
 out4:
-	free(efuse_syn_data_addr.buf);
+	versal_mbox_free(&efuse_syn_data_addr);
 out3:
-	free(aux_addr.buf);
+	versal_mbox_free(&aux_addr);
 out2:
-	free(hash_addr.buf);
+	versal_mbox_free(&hash_addr);
 out1:
-	free(puf_id_addr.buf);
+	versal_mbox_free(&puf_id_addr);
 
 	return ret;
 }

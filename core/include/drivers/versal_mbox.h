@@ -63,4 +63,6 @@ TEE_Result versal_mbox_notify_pmc(struct versal_ipi_cmd *cmd,
 
 TEE_Result versal_mbox_alloc(size_t len, const void *init,
 			     struct versal_mbox_mem *mem);
+TEE_Result versal_mbox_free(struct versal_mbox_mem *mem);
+
 #endif /* __DRIVERS_VERSAL_MBOX_H */

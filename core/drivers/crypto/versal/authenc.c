@@ -406,11 +406,11 @@ static TEE_Result do_init(struct drvcrypt_authenc_init *dinit)
 
 	return TEE_SUCCESS;
 error:
-	free(nonce.buf);
+	versal_mbox_free(&nonce);
 out2:
-	free(init_buf.buf);
+	versal_mbox_free(&init_buf);
 out1:
-	free(key.buf);
+	versal_mbox_free(&key);
 
 	return ret;
 }
@@ -465,7 +465,7 @@ static TEE_Result do_update_aad(struct drvcrypt_authenc_update_aad *dupdate)
 
 	return TEE_SUCCESS;
 error:
-	free(p.buf);
+	versal_mbox_free(&p);
 	return ret;
 }
 
@@ -544,11 +544,11 @@ update_payload(struct drvcrypt_authenc_update_payload *dupdate, bool is_last)
 		return TEE_SUCCESS;
 	}
 error:
-	free(input_cmd.buf);
+	versal_mbox_free(&input_cmd);
 out2:
-	free(q.buf);
+	versal_mbox_free(&q);
 out1:
-	free(p.buf);
+	versal_mbox_free(&p);
 
 	return ret;
 }
@@ -626,7 +626,7 @@ static TEE_Result do_enc_final(struct drvcrypt_authenc_final *dfinal)
 	memcpy(dfinal->tag.data, p.buf, GCM_TAG_LEN);
 	dfinal->tag.length = GCM_TAG_LEN;
 out:
-	free(p.buf);
+	versal_mbox_free(&p);
 
 	if (refcount_val(&engine.refc) > 1)
 		engine.state = FINALIZED;
@@ -682,7 +682,7 @@ static TEE_Result do_dec_final(struct drvcrypt_authenc_final *dfinal)
 	memcpy(dfinal->tag.data, p.buf, GCM_TAG_LEN);
 	dfinal->tag.length = GCM_TAG_LEN;
 out:
-	free(p.buf);
+	versal_mbox_free(&p);
 
 	if (refcount_val(&engine.refc) > 1)
 		engine.state = FINALIZED;
@@ -710,19 +710,19 @@ static void do_free(void *ctx)
 		release = true;
 		refcount_set(&engine.refc, 1);
 		engine.state = READY;
-		free(engine.init.init_buf.buf);
-		free(engine.init.nonce.buf);
-		free(engine.init.key.buf);
+		versal_mbox_free(&engine.init.init_buf);
+		versal_mbox_free(&engine.init.nonce);
+		versal_mbox_free(&engine.init.key);
 		memset(&engine.init, 0, sizeof(engine.init));
 		STAILQ_FOREACH_SAFE(node, &engine.replay_list, link, next) {
 			STAILQ_REMOVE(&engine.replay_list, node,
 				      versal_node, link);
 			if (node->is_aad) {
-				free(node->aad.mem.buf);
+				versal_mbox_free(&node->aad.mem);
 			} else {
-				free(node->payload.dst.buf);
-				free(node->payload.src.buf);
-				free(node->payload.input_cmd.buf);
+				versal_mbox_free(&node->payload.dst);
+				versal_mbox_free(&node->payload.src);
+				versal_mbox_free(&node->payload.input_cmd);
 			}
 			free(node);
 		}

@@ -389,6 +389,15 @@ TEE_Result versal_mbox_alloc(size_t len, const void *init,
 	return TEE_SUCCESS;
 }
 
+TEE_Result versal_mbox_free(struct versal_mbox_mem *mem)
+{
+	if (!mem)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	free(mem->buf);
+	return TEE_SUCCESS;
+}
+
 TEE_Result versal_mbox_notify(struct versal_ipi *ipi, struct versal_ipi_cmd *cmd,
 			      struct versal_ipi_cmd *rsp, uint32_t *err)
 {

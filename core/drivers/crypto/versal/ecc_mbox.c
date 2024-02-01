@@ -160,13 +160,13 @@ TEE_Result versal_ecc_verify(uint32_t algo, struct ecc_public_key *key,
 		ret = TEE_ERROR_GENERIC;
 	}
 
-	free(cmd);
+	versal_mbox_free(&cmd_buf);
 out3:
-	free(s.buf);
+	versal_mbox_free(&s);
 out2:
-	free(x.buf);
+	versal_mbox_free(&x);
 out1:
-	free(p.buf);
+	versal_mbox_free(&p);
 
 	return ret;
 }
@@ -207,7 +207,7 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 					      TEE_TYPE_ECDSA_KEYPAIR, bits);
 	if (ret) {
 		EMSG("Versal, can't allocate the ephemeral key");
-		free(p.buf);
+		versal_mbox_free(&p);
 		return ret;
 	}
 
@@ -215,7 +215,7 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 	ret = crypto_acipher_gen_ecc_key(&ephemeral, bits);
 	if (ret) {
 		EMSG("Versal, can't generate the ephemeral key");
-		free(p.buf);
+		versal_mbox_free(&p);
 		return ret;
 	}
 
@@ -270,15 +270,15 @@ TEE_Result versal_ecc_sign(uint32_t algo, struct ecc_keypair *key,
 	memcpy_swp(sig + *sig_len / 2, (uint8_t *)s.buf + *sig_len / 2,
 		   *sig_len / 2);
 error:
-	free(cmd);
+	versal_mbox_free(&cmd_buf);
 out4:
-	free(s.buf);
+	versal_mbox_free(&s);
 out3:
-	free(d.buf);
+	versal_mbox_free(&d);
 out2:
-	free(k.buf);
+	versal_mbox_free(&k);
 out1:
-	free(p.buf);
+	versal_mbox_free(&p);
 
 	return ret;
 }

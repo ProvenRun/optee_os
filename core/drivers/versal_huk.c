@@ -214,7 +214,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 			EMSG("AES_WRITE_KEY error");
 			ret = TEE_ERROR_GENERIC;
 		}
-		free(p.buf);
+		versal_mbox_free(&p);
 		memset(&cmd, 0, sizeof(cmd));
 		if (ret)
 			return ret;
@@ -228,7 +228,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		return ret;
 	ret = versal_mbox_alloc(nce_len, nce_data, &p);
 	if (ret) {
-		free(init_buf.buf);
+		versal_mbox_free(&init_buf);
 		return ret;
 	}
 
@@ -245,8 +245,8 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		EMSG("AES_OP_INIT error");
 		ret = TEE_ERROR_GENERIC;
 	}
-	free(init);
-	free(p.buf);
+	versal_mbox_free(&init_buf);
+	versal_mbox_free(&p);
 	memset(&cmd, 0, sizeof(cmd));
 	if (ret)
 		return ret;
@@ -266,7 +266,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		EMSG("AES_UPDATE_AAD error");
 		ret = TEE_ERROR_GENERIC;
 	}
-	free(p.buf);
+	versal_mbox_free(&p);
 	memset(&cmd, 0, sizeof(cmd));
 	if (ret)
 		return ret;
@@ -276,13 +276,13 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		return ret;
 	ret = versal_mbox_alloc(src_len, src, &p);
 	if (ret) {
-		free(input_cmd.buf);
+		versal_mbox_free(&input_cmd);
 		return ret;
 	}
 	ret = versal_mbox_alloc(dst_len, NULL, &q);
 	if (ret) {
-		free(input_cmd.buf);
-		free(p.buf);
+		versal_mbox_free(&input_cmd);
+		versal_mbox_free(&p);
 		return ret;
 	}
 
@@ -301,9 +301,9 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		ret = TEE_ERROR_GENERIC;
 	}
 	memcpy(dst, q.buf, dst_len);
-	free(input);
-	free(p.buf);
-	free(q.buf);
+	versal_mbox_free(&input_cmd);
+	versal_mbox_free(&p);
+	versal_mbox_free(&q);
 	memset(&cmd, 0, sizeof(cmd));
 	if (ret)
 		return ret;
@@ -317,7 +317,7 @@ static TEE_Result aes_gcm_encrypt(uint8_t *src, size_t src_len,
 		EMSG("AES_ENCRYPT_FINAL error");
 		ret = TEE_ERROR_GENERIC;
 	}
-	free(p.buf);
+	versal_mbox_free(&p);
 	memzero_explicit(&cmd, sizeof(cmd));
 
 	return ret;

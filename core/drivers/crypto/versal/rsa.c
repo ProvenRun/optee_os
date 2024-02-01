@@ -116,13 +116,13 @@ static TEE_Result do_encrypt(struct drvcrypt_rsa_ed *rsa_data)
 		memcpy(rsa_data->cipher.data, cipher.buf, rsa_data->key.n_size);
 	}
 
-	free(cmd);
+	versal_mbox_free(&cmd_buf);
 out3:
-	free(cipher.buf);
+	versal_mbox_free(&cipher);
 out2:
-	free(msg.buf);
+	versal_mbox_free(&msg);
 out1:
-	free(key.buf);
+	versal_mbox_free(&key);
 
 	return ret;
 }
@@ -213,13 +213,13 @@ static TEE_Result do_decrypt(struct drvcrypt_rsa_ed *rsa_data)
 		memcpy(rsa_data->message.data, msg.buf, rsa_data->key.n_size);
 	}
 
-	free(cmd);
+	versal_mbox_free(&cmd_buf);
 out3:
-	free(msg.buf);
+	versal_mbox_free(&msg);
 out2:
-	free(cipher.buf);
+	versal_mbox_free(&cipher);
 out1:
-	free(key.buf);
+	versal_mbox_free(&key);
 
 	return ret;
 }

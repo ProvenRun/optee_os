@@ -1119,7 +1119,7 @@ TEE_Result hw_get_random_bytes(void *buf, size_t len)
 	if (!ret)
 		memcpy(buf, p.buf, len);
 
-	free(p.buf);
+	versal_mbox_free(&p);
 	return ret;
 }
 #endif

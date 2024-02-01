@@ -37,11 +37,11 @@ static TEE_Result input_plaintext(const uint8_t *src, size_t src_len)
 		ret = versal_crypto_request(VERSAL_SHA3_UPDATE, &arg, NULL);
 		if (ret) {
 			EMSG("VERSAL_SHA3_UPDATE [%ld, len = %zu]", i, len);
-			free(p.buf);
+			versal_mbox_free(&p);
 			break;
 		}
 
-		free(p.buf);
+		versal_mbox_free(&p);
 		first = 0;
 		i++;
 	}
@@ -66,7 +66,7 @@ static TEE_Result get_ciphertext(uint8_t *dst, size_t dst_len)
 	else
 		EMSG("VERSAL_SHA3_UPDATE final");
 
-	free(p.buf);
+	versal_mbox_free(&p);
 
 	return ret;
 }
