@@ -102,7 +102,7 @@ static TEE_Result versal_ecc_trng_get_random_bytes(void *buf, size_t len)
 
 #define PKI_MAX_RETRY_COUNT				10000
 
-#define PKI_QUEUE_BUF_SIZE				0x10000
+#define PKI_QUEUE_BUF_SIZE				0x1000
 
 struct versal_pki {
 	vaddr_t regs;
@@ -249,6 +249,8 @@ static TEE_Result pki_start_operation(uint32_t reqval)
 	io_write32(versal_pki.regs + PKI_CRYPTO_SOFT_RESET_OFFSET, 0);
 
 	cache_operation(TEE_CACHEFLUSH, versal_pki.rq_in, PKI_QUEUE_BUF_SIZE);
+	cache_operation(TEE_CACHEFLUSH, versal_pki.rq_out, PKI_QUEUE_BUF_SIZE);
+	cache_operation(TEE_CACHEFLUSH, versal_pki.cq, PKI_QUEUE_BUF_SIZE);
 
 	io_write32(versal_pki.regs + PKI_RQ_CFG_PERMISSIONS_OFFSET,
 		PKI_RQ_CFG_PERMISSIONS_SAFE);
@@ -286,18 +288,21 @@ static TEE_Result pki_start_operation(uint32_t reqval)
 		}
 	}
 
-	cache_operation(TEE_CACHEINVALIDATE, versal_pki.cq, PKI_QUEUE_BUF_SIZE);
-	cache_operation(TEE_CACHEINVALIDATE, versal_pki.rq_out, PKI_QUEUE_BUF_SIZE);
-
 	return ret;
 }
 
 static TEE_Result pki_check_status(void)
 {
-	uint32_t cq_status = io_read32((vaddr_t)versal_pki.cq);
-	uint32_t cq_value = io_read32((vaddr_t)versal_pki.cq + 4);
+	uint32_t cq_status;
+	uint32_t cq_value;
 
-	if (cq_status != PKI_EXPECTED_CQ_STATUS)
+	cache_operation(TEE_CACHEFLUSH, versal_pki.cq, PKI_QUEUE_BUF_SIZE);
+
+	cq_status = io_read32((vaddr_t)versal_pki.cq);
+	cq_value = io_read32((vaddr_t)versal_pki.cq + 4);
+
+	if ((cq_status != PKI_EXPECTED_CQ_STATUS) &&
+			(cq_value != PKI_EXPECTED_CQ_VALUE))
 		return TEE_ERROR_GENERIC;
 
 	return TEE_SUCCESS;
@@ -453,6 +458,8 @@ TEE_Result versal_ecc_sign_ephemeral(uint32_t algo, size_t bytes,
 	/* Copy signature back */
 	*sig_len = 2 * bytes;
 
+	cache_operation(TEE_CACHEFLUSH, versal_pki.rq_out, PKI_QUEUE_BUF_SIZE);
+
 	memcpy_swp(sig, versal_pki.rq_out, bytes);
 	memcpy_swp(sig + bytes, versal_pki.rq_out + bytes, bytes);
 
@@ -600,6 +607,8 @@ static TEE_Result versal_ecc_gen_private_key(uint32_t curve, uint8_t *priv, size
 	if (ret)
 		return ret;
 
+	cache_operation(TEE_CACHEFLUSH, versal_pki.rq_out, PKI_QUEUE_BUF_SIZE);
+
 	/* Copy back result */
 	memcpy(priv, versal_pki.rq_out, bytes);
 
@@ -668,6 +677,8 @@ TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s)
 	ret = pki_check_status();
 	if (ret)
 		return ret;
+
+	cache_operation(TEE_CACHEFLUSH, versal_pki.rq_out, PKI_QUEUE_BUF_SIZE);
 
 	/* Copy private and public keys back */
 	crypto_bignum_bin2bn_eswap(priv, bytes, s->d);
