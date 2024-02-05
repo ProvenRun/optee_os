@@ -10,7 +10,7 @@
 #include <drivers/gpio.h>
 #include <crypto/crypto.h>
 
-#define VERSAL_TEST_PTA_NAME "gpio.pta"
+#define VERSAL_TEST_PTA_NAME "versal-test.pta"
 
 #define VERSAL_TEST_PTA_UUID { 0xf60b2cbc, 0xd14e, 0x4ffb, \
 	{ 0x8f, 0xdc, 0x25, 0x86, 0xfb, 0x20, 0x3d, 0xf0 } }
