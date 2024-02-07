@@ -1089,15 +1089,62 @@ TEE_Result versal_efuse_write_revoke_id(uint32_t id)
 	return do_write_efuses_value(EFUSE_WRITE_REVOCATION_ID, id);
 }
 
-TEE_Result versal_efuse_write_puf_as_user_fuse(struct versal_efuse_puf_user_fuse
-					       *p)
+TEE_Result versal_efuse_write_puf_as_user_fuse(
+			   struct versal_efuse_puf_user_fuse *p __unused)
 {
 	return TEE_ERROR_NOT_IMPLEMENTED;
 }
 
+#define EFUSE_WRITE_PUF_DATA_WORDS (PUF_SYN_DATA_WORDS + 6)
+
+struct versal_efuse_write_puf_data {
+	uint32_t sec_ctrl;
+	uint32_t prgm_puf_helper_data;
+	uint32_t env_monitor_dis;
+	uint32_t syn[PUF_SYN_DATA_WORDS];
+	uint32_t chash;
+	uint32_t aux;
+	uint32_t ro_swap;
+};
+
 TEE_Result versal_efuse_write_puf(struct versal_efuse_puf_header *buf)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	struct versal_ipi_cmd cmd = { };
+	struct versal_mbox_mem p = { };
+	TEE_Result ret = TEE_SUCCESS;
+	uint32_t a = 0;
+	uint32_t b = 0;
+	struct versal_efuse_write_puf_data *data;
+
+	if (buf == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	ret = versal_mbox_alloc(EFUSE_WRITE_PUF_DATA_WORDS * NVM_WORD_LEN, NULL, &p);
+	if (ret)
+		return ret;
+
+	data = p.buf;
+
+	data->sec_ctrl = 0;
+	data->prgm_puf_helper_data = buf->prmg_puf_helper_data;
+	data->env_monitor_dis = buf->env_monitor_dis;
+	memcpy(data->syn, buf->efuse_syn_data, PUF_SYN_DATA_WORDS * NVM_WORD_LEN);
+	data->chash = buf->chash;
+	data->aux = buf->aux;
+	data->ro_swap = 0;
+
+	reg_pair_from_64(virt_to_phys(p.buf), &b, &a);
+
+	cmd.data[0] = NVM_API_ID(EFUSE_WRITE_PUF);
+	cmd.data[2] = a;
+	cmd.data[3] = b;
+
+	cmd.ibuf[0].mem = p;
+
+	ret = versal_mbox_notify_pmc(&cmd, NULL, NULL);
+
+	versal_mbox_free(&p);
+	return ret;
 }
 #else
 TEE_Result versal_efuse_read_user_data(uint32_t *buf, size_t len,
