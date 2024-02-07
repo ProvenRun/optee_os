@@ -955,7 +955,7 @@ TEE_Result versal_efuse_write_sec(struct versal_efuse_sec_ctrl_bits *p)
 		return TEE_ERROR_BAD_PARAMETERS;
 
 	val = ((p->reg_init_dis & 0x3) << 30) |
-		  ((p->boot_env_ctrl & 0x1) << 28) |
+		  ((p->boot_env_wr_lk & 0x1) << 28) |
 		  ((p->sec_lock_dbg_dis & 0x3) << 21) |
 		  ((p->sec_dbg_dis & 0x3) << 19) |
 		  ((p->user_key1_wr_lk & 0x1) << 15) |
@@ -1004,7 +1004,20 @@ TEE_Result versal_efuse_write_glitch_cfg(struct versal_efuse_glitch_cfg_bits
 TEE_Result versal_efuse_write_boot_env(struct versal_efuse_boot_env_ctrl_bits
 				       *p)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	uint32_t val = 0;
+
+	if (p == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	val = ((p->sysmon_temp_en & 0x1) << 21) |
+		  ((p->sysmon_volt_en & 0x1) << 20) |
+		  ((p->sysmon_temp_hot & 0x3) << 17) |
+		  ((p->sysmon_volt_pmc & 0x3) << 12) |
+		  ((p->sysmon_volt_pslp & 0x3) << 10) |
+		  ((p->sysmon_volt_soc & 0x3) << 8) |
+		  (p->sysmon_temp_cold & 0x2);
+
+	return do_write_efuses_value(EFUSE_WRITE_BOOT_ENV_CTRL_BITS, val);
 }
 
 TEE_Result versal_efuse_write_sec_misc1(struct versal_efuse_sec_misc1_bits *p)
