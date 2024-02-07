@@ -818,6 +818,10 @@ static TEE_Result do_write_efuses_value(enum versal_nvm_api_id id, uint32_t val)
 	return ret;
 }
 
+static TEE_Result do_write_efuses(enum versal_nvm_api_id id)
+{
+	return do_write_efuses_value(id, 0);
+}
 
 TEE_Result versal_efuse_write_aes_keys(struct versal_efuse_aes_keys *keys)
 {
@@ -944,7 +948,13 @@ TEE_Result versal_efuse_write_iv(struct versal_efuse_ivs *p)
 
 TEE_Result versal_efuse_write_dec_only(struct versal_efuse_dec_only *p)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	if (p == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (!p->prgm_dec_only)
+		return TEE_SUCCESS;
+
+	return do_write_efuses(EFUSE_WRITE_DEC_ONLY);
 }
 
 TEE_Result versal_efuse_write_sec(struct versal_efuse_sec_ctrl_bits *p)
