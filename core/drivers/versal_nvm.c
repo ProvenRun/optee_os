@@ -949,7 +949,29 @@ TEE_Result versal_efuse_write_dec_only(struct versal_efuse_dec_only *p)
 
 TEE_Result versal_efuse_write_sec(struct versal_efuse_sec_ctrl_bits *p)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	uint32_t val = 0;
+
+	if (p == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	val = ((p->reg_init_dis & 0x3) << 30) |
+		  ((p->boot_env_ctrl & 0x1) << 28) |
+		  ((p->sec_lock_dbg_dis & 0x3) << 21) |
+		  ((p->sec_dbg_dis & 0x3) << 19) |
+		  ((p->user_key1_wr_lk & 0x1) << 15) |
+		  ((p->user_key1_crc_lk & 0x1) << 14) |
+		  ((p->user_key0_wr_lk & 0x1) << 13) |
+		  ((p->user_key0_crc_lk & 0x1) << 12) |
+		  ((p->aes_wr_lk & 0x1) << 11) |
+		  ((p->aes_crc_lk & 0x3) << 9) |
+		  ((p->ppk2_wr_lk & 0x1) << 8) |
+		  ((p->ppk1_wr_lk & 0x1) << 7) |
+		  ((p->ppk0_wr_lk & 0x1) << 6) |
+		  ((p->jtag_dis & 0x1) << 2) |
+		  ((p->jtag_err_out_dis & 0x1) << 1) |
+		  (p->aes_dis & 0x1);
+
+	return do_write_efuses_value(EFUSE_WRITE_SEC_CTRL_BITS, val);
 }
 
 TEE_Result versal_efuse_write_misc(struct versal_efuse_misc_ctrl_bits *p)
