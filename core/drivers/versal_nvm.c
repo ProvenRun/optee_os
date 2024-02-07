@@ -882,7 +882,49 @@ TEE_Result versal_efuse_write_ppk_hash(struct versal_efuse_ppk_hash *hash)
 
 TEE_Result versal_efuse_write_iv(struct versal_efuse_ivs *p)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	TEE_Result ret = TEE_SUCCESS;
+	TEE_Result res;
+
+	if (p == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (p->prgm_meta_header_iv) {
+		res = do_write_efuses(EFUSE_WRITE_IV, EFUSE_META_HEADER_IV_RANGE,
+					   p->meta_header_iv, EFUSE_IV_LEN);
+		if (res) {
+			DMSG("Error programming meta header IV (ret = 0x%" PRIx32 ")", res);
+			ret = TEE_ERROR_GENERIC;
+		}
+	}
+
+	if (p->prgm_blk_obfus_iv) {
+		res = do_write_efuses(EFUSE_WRITE_IV, EFUSE_BLACK_IV,
+					   p->blk_obfus_iv, EFUSE_IV_LEN);
+		if (res) {
+			DMSG("Error programming black IV (ret = 0x%" PRIx32 ")", res);
+			ret = TEE_ERROR_GENERIC;
+		}
+	}
+
+	if (p->prgm_plm_iv) {
+		res = do_write_efuses(EFUSE_WRITE_IV, EFUSE_PLM_IV_RANGE,
+					   p->plm_iv, EFUSE_IV_LEN);
+		if (res) {
+			DMSG("Error programming plm IV (ret = 0x%" PRIx32 ")", res);
+			ret = TEE_ERROR_GENERIC;
+		}
+	}
+
+	if (p->prgm_data_partition_iv) {
+		res = do_write_efuses(EFUSE_WRITE_IV, EFUSE_DATA_PARTITION_IV_RANGE,
+					   p->data_partition_iv, EFUSE_IV_LEN);
+		if (res) {
+			DMSG("Error programming data partition IV (ret = 0x%" PRIx32 ")", res);
+			ret = TEE_ERROR_GENERIC;
+		}
+	}
+
+	return ret;
 }
 
 TEE_Result versal_efuse_write_dec_only(struct versal_efuse_dec_only *p)
