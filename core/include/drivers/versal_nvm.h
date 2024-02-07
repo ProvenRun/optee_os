@@ -14,7 +14,12 @@
 
 #define PUF_EFUSES_WORDS		(128)
 #define PUF_SYN_DATA_WORDS		(127)
+
+#if defined(PLATFORM_FLAVOR_adaptative)
+#define EFUSE_MAX_USER_FUSES		(48)
+#else
 #define EFUSE_MAX_USER_FUSES		(64)
+#endif
 
 #define EFUSE_OFFCHIP_REVOCATION_ID_LEN	(4)
 #define EFUSE_REVOCATION_ID_LEN		(4)
