@@ -763,15 +763,81 @@ TEE_Result versal_efuse_read_puf_as_user_fuse(
 	return TEE_ERROR_NOT_IMPLEMENTED;
 }
 
-TEE_Result versal_efuse_write_user_data(uint32_t *buf, size_t len,
-					uint32_t first, size_t num)
+TEE_Result versal_efuse_write_user_data(uint32_t *buf __unused,
+				    size_t len __unused, uint32_t first __unused,
+					size_t num __unused)
 {
 	return TEE_ERROR_NOT_IMPLEMENTED;
 }
 
+#define EFUSE_ENV_DIS_FLAG		0
+
+#define EFUSE_AES_KEY_LEN		32
+
+#define EFUSE_AES_KEY_ID		0
+#define EFUSE_USER_KEY0_ID		1
+#define EFUSE_USER_KEY1_ID		2
+
+static TEE_Result versal_efuse_write_aes_key(uint16_t keytype, uint32_t *key)
+{
+	struct versal_ipi_cmd cmd = { };
+	struct versal_mbox_mem p = { };
+	TEE_Result ret = TEE_SUCCESS;
+	uint32_t a = 0;
+	uint32_t b = 0;
+
+	ret = versal_mbox_alloc(EFUSE_AES_KEY_LEN, key, &p);
+	if (ret)
+		return ret;
+
+	reg_pair_from_64(virt_to_phys(p.buf), &b, &a);
+
+	cmd.data[0] = NVM_API_ID(EFUSE_WRITE_AES_KEY);
+	cmd.data[1] = (keytype << 16) | EFUSE_ENV_DIS_FLAG;
+	cmd.data[2] = a;
+	cmd.data[3] = b;
+
+	cmd.ibuf[0].mem = p;
+
+	ret = versal_mbox_notify_pmc(&cmd, NULL, NULL);
+
+	versal_mbox_free(&p);
+	return ret;
+}
+
 TEE_Result versal_efuse_write_aes_keys(struct versal_efuse_aes_keys *keys)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	TEE_Result ret = TEE_SUCCESS;
+	TEE_Result res;
+
+	if (keys == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (keys->prgm_aes_key) {
+		res = versal_efuse_write_aes_key(EFUSE_AES_KEY_ID, keys->aes_key);
+		if (res) {
+			DMSG("Error programming AES key (ret = 0x%" PRIx32 ")", res);
+			ret = TEE_ERROR_GENERIC;
+		}
+	}
+
+	if (keys->prgm_user_key0) {
+		res = versal_efuse_write_aes_key(EFUSE_USER_KEY0_ID, keys->user_key0);
+		if (res) {
+			DMSG("Error programming User key 0 (ret = 0x%" PRIx32 ")", res);
+			ret = TEE_ERROR_GENERIC;
+		}
+	}
+
+	if (keys->prgm_user_key1) {
+		res = versal_efuse_write_aes_key(EFUSE_USER_KEY1_ID, keys->user_key1);
+		if (res) {
+			DMSG("Error programming User key 1 (ret = 0x%" PRIx32 ")", res);
+			ret = TEE_ERROR_GENERIC;
+		}
+	}
+
+	return ret;
 }
 
 TEE_Result versal_efuse_write_ppk_hash(struct versal_efuse_ppk_hash *hash)
