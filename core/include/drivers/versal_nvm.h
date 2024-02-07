@@ -249,7 +249,11 @@ TEE_Result versal_efuse_write_glitch_cfg(struct versal_efuse_glitch_cfg_bits
 TEE_Result versal_efuse_write_boot_env(struct versal_efuse_boot_env_ctrl_bits
 				       *p);
 TEE_Result versal_efuse_write_sec_misc1(struct versal_efuse_sec_misc1_bits *p);
+#if defined(PLATFORM_FLAVOR_adaptative)
+TEE_Result versal_efuse_write_offchip_ids(uint32_t id);
+#else
 TEE_Result versal_efuse_write_offchip_ids(struct versal_efuse_offchip_ids *p);
+#endif
 TEE_Result versal_efuse_write_revoke_ppk(enum versal_nvm_ppk_type type);
 TEE_Result versal_efuse_write_revoke_id(uint32_t id);
 TEE_Result versal_efuse_read_revoke_id(uint32_t *buf, size_t len,

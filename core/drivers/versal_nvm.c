@@ -954,7 +954,23 @@ TEE_Result versal_efuse_write_sec(struct versal_efuse_sec_ctrl_bits *p)
 
 TEE_Result versal_efuse_write_misc(struct versal_efuse_misc_ctrl_bits *p)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	uint32_t val = 0;
+
+	if (p == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	val = ((p->glitch_det_halt_boot_en & 0x3) << 30) |
+		  ((p->glitch_det_rom_monitor_en & 0x1) << 29) |
+		  ((p->halt_boot_error & 0x3) << 21) |
+		  ((p->halt_boot_env & 0x3) << 19) |
+		  ((p->crypto_kat_en & 0x1) << 15) |
+		  ((p->lbist_en & 0x1) << 14) |
+		  ((p->safety_mission_en & 0x1) << 8) |
+		  ((p->ppk2_invalid & 0x3) << 6) |
+		  ((p->ppk1_invalid & 0x3) << 4) |
+		  ((p->ppk0_invalid & 0x3) << 2);
+
+	return do_write_efuses_value(EFUSE_WRITE_MISC_CTRL_BITS, val);
 }
 
 TEE_Result versal_efuse_write_glitch_cfg(struct versal_efuse_glitch_cfg_bits
@@ -974,14 +990,32 @@ TEE_Result versal_efuse_write_sec_misc1(struct versal_efuse_sec_misc1_bits *p)
 	return TEE_ERROR_NOT_IMPLEMENTED;
 }
 
-TEE_Result versal_efuse_write_offchip_ids(struct versal_efuse_offchip_ids *p)
+TEE_Result versal_efuse_write_offchip_ids(uint32_t id)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	return do_write_efuses_value(EFUSE_WRITE_OFFCHIP_REVOKE_ID, id);
 }
 
 TEE_Result versal_efuse_write_revoke_ppk(enum versal_nvm_ppk_type type)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	struct versal_efuse_misc_ctrl_bits misc_ctrl;
+
+	memset(&misc_ctrl, 0, sizeof(struct versal_efuse_misc_ctrl_bits));
+
+	switch (type) {
+	case EFUSE_PPK0:
+		misc_ctrl.ppk0_invalid = 0x3;
+		break;
+	case EFUSE_PPK1:
+		misc_ctrl.ppk1_invalid = 0x3;
+		break;
+	case EFUSE_PPK2:
+		misc_ctrl.ppk2_invalid = 0x3;
+		break;
+	default:
+		return TEE_ERROR_BAD_PARAMETERS;
+	}
+
+	return versal_efuse_write_misc(&misc_ctrl);
 }
 
 TEE_Result versal_efuse_write_revoke_id(uint32_t id)
