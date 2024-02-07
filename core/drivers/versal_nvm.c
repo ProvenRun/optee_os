@@ -987,7 +987,18 @@ TEE_Result versal_efuse_write_boot_env(struct versal_efuse_boot_env_ctrl_bits
 
 TEE_Result versal_efuse_write_sec_misc1(struct versal_efuse_sec_misc1_bits *p)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	uint32_t val = 0;
+
+	if (p == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	val = ((p->lpd_mbist_en & 0x7) << 10) |
+		  ((p->pmc_mbist_en & 0x7) << 7) |
+		  ((p->lpd_noc_sc_en & 0x7) << 4) |
+		  ((p->sysmon_volt_mon_en & 0x3) << 2) |
+		  (p->sysmon_temp_mon_en & 0x3);
+
+	return do_write_efuses_value(EFUSE_WRITE_MISC1_CTRL_BITS, val);
 }
 
 TEE_Result versal_efuse_write_offchip_ids(uint32_t id)
