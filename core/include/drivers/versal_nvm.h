@@ -27,6 +27,7 @@
 #define EFUSE_DNA_LEN			(16)
 #define EFUSE_PPK_LEN			(32)
 #define EFUSE_IV_LEN			(12)
+#define EFUSE_AES_KEY_LEN		(32)
 
 enum versal_nvm_iv_type {
 	EFUSE_META_HEADER_IV_RANGE = 0,
