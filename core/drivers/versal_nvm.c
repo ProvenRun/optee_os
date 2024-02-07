@@ -1005,10 +1005,20 @@ TEE_Result versal_efuse_write_misc(struct versal_efuse_misc_ctrl_bits *p)
 	return do_write_efuses_value(EFUSE_WRITE_MISC_CTRL_BITS, val);
 }
 
-TEE_Result versal_efuse_write_glitch_cfg(struct versal_efuse_glitch_cfg_bits
-					 *p)
+TEE_Result versal_efuse_write_glitch_cfg(
+			  struct versal_efuse_glitch_cfg_bits *p)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	uint32_t val = 0;
+
+	if (p == NULL)
+		return TEE_ERROR_BAD_PARAMETERS;
+
+	if (!p->prgm_glitch)
+		return TEE_SUCCESS;
+
+	val = ((p->glitch_det_wr_lk & 0x1) << 31) | p->glitch_det_trim;
+
+	return do_write_efuses_value(EFUSE_WRITE_GLITCH_CONFIG, val);
 }
 
 TEE_Result versal_efuse_write_boot_env(struct versal_efuse_boot_env_ctrl_bits
