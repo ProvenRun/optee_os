@@ -176,7 +176,6 @@ static const char *const nvm_id[] = {
 	[33] = "EFUSE_READ_CACHE",
 	[34] = "EFUSE_RELOAD_N_PRGM_PROT_BITS",
 	[35] = "EFUSE_INVALID",
-
 #else
 	[6] = "EFUSE_WRITE",
 	[7] = "EFUSE_WRITE_PUF",
