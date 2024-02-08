@@ -48,7 +48,7 @@ else
 $(call force,CFG_ARM32_core,y)
 endif
 
-CFG_RPMB_FS ?= y
+CFG_RPMB_FS ?= n
 CFG_RPMB_TESTKEY ?= y
 CFG_RPMB_WRITE_KEY ?=y
 
