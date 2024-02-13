@@ -575,16 +575,14 @@ static TEE_Result versal_ecc_gen_private_key(uint32_t curve, uint8_t *priv, size
 			return TEE_ERROR_NOT_SUPPORTED;
 	}
 
-	ret = versal_ecc_trng_get_random_bytes(priv, bytes);
-	if (ret)
-		return ret;
-
 	/* Copy curve order N */
 	memcpy((uint8_t *)addr, order, bytes);
 	addr += bytes;
 
-	/* Copy A = priv */
-	memcpy((uint8_t *)addr, priv, bytes);
+	/* Copy A = random */
+	ret = versal_ecc_trng_get_random_bytes((uint8_t *)addr, bytes);
+	if (ret)
+		return ret;
 	addr += bytes;
 
 	/* Copy B = 1 */
@@ -625,17 +623,11 @@ TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s)
 	TEE_Result ret = TEE_SUCCESS;
 	size_t bytes;
 	size_t bits;
-	uint8_t priv[TEE_SHA512_HASH_SIZE + 2];
 	const uint8_t *Gx;
 	const uint8_t *Gy;
 	uintptr_t addr = (uintptr_t)versal_pki.rq_in;
 
 	ret = versal_ecc_get_key_size(s->curve, &bytes, &bits);
-	if (ret)
-		return ret;
-
-	/* Generate private key */
-	ret = versal_ecc_gen_private_key(s->curve, priv, bytes);
 	if (ret)
 		return ret;
 
@@ -656,8 +648,10 @@ TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s)
 			return TEE_ERROR_NOT_SUPPORTED;
 	}
 
-	/* Copy private key */
-	memcpy((uint8_t *)addr, priv, bytes);
+	/* Generate private key */
+	ret = versal_ecc_gen_private_key(s->curve, (uint8_t *)addr, bytes);
+	if (ret)
+		return ret;
 	addr += bytes;
 
 	/* Copy generator point x coordinate */
@@ -691,7 +685,7 @@ TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s)
 	cache_operation(TEE_CACHEFLUSH, versal_pki.rq_out, PKI_QUEUE_BUF_SIZE);
 
 	/* Copy private and public keys back */
-	crypto_bignum_bin2bn_eswap(priv, bytes, s->d);
+	crypto_bignum_bin2bn_eswap(versal_pki.rq_in, bytes, s->d);
 	crypto_bignum_bin2bn_eswap(versal_pki.rq_out, bytes, s->x);
 	crypto_bignum_bin2bn_eswap(versal_pki.rq_out + bytes, bytes, s->y);
 
