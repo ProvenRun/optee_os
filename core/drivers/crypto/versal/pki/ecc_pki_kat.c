@@ -424,7 +424,7 @@ TEE_Result versal_ecc_keypair_pwct(struct ecc_keypair *s)
 	size_t bits;
 	size_t len;
 
-	uint8_t msg[TEE_SHA512_HASH_SIZE] = { };
+	uint8_t msg[TEE_SHA512_HASH_SIZE + 2] = { };
 	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2] = { };
 
 	switch (s->curve) {

@@ -31,7 +31,7 @@ struct versal_test_pta_ctx
 {
 	struct ecc_keypair key;
 	struct ecc_public_key pkey;
-	uint8_t msg[TEE_SHA512_HASH_SIZE];
+	uint8_t msg[TEE_SHA512_HASH_SIZE + 2];
 	uint8_t sig[(TEE_SHA512_HASH_SIZE + 2) * 2];
 };
 

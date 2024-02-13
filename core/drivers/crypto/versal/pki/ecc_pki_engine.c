@@ -592,6 +592,11 @@ static TEE_Result versal_ecc_gen_private_key(uint32_t curve, uint8_t *priv, size
 	memset((uint8_t *)addr + 1, 0, bytes - 1);
 	addr += bytes;
 
+	if (curve == TEE_ECC_CURVE_NIST_P521) {
+		memset((uint8_t *)addr, 0, PKI_SIGN_P521_PADD_BYTES);
+		addr += PKI_SIGN_P521_PADD_BYTES;
+	}
+
 	/* Build descriptors */
 	ret = pki_build_descriptors(curve, PKI_DESC_OPTYPE_MOD_ADD,
 		(uint32_t *)addr);
@@ -662,6 +667,11 @@ TEE_Result versal_ecc_gen_keypair(struct ecc_keypair *s)
 	/* Copy generator point y coordinate */
 	memcpy((uint8_t *)addr, Gy, bytes);
 	addr += bytes;
+
+	if (s->curve == TEE_ECC_CURVE_NIST_P521) {
+		memset((uint8_t *)addr, 0, PKI_SIGN_P521_PADD_BYTES);
+		addr += PKI_SIGN_P521_PADD_BYTES;
+	}
 
 	/* Build descriptors */
 	ret = pki_build_descriptors(s->curve, PKI_DESC_OPTYPE_ECC_POINTMUL,
