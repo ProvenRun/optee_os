@@ -118,6 +118,9 @@ static TEE_Result test_nvm(void)
 
 static TEE_Result test_puf(void)
 {
+	struct versal_puf_data data = { };
+	struct versal_puf_cfg cfg = { };
+
 	TEE_Result ret = TEE_SUCCESS;
 
 	ret = versal_puf_check_api(VERSAL_PUF_REGISTER);
@@ -137,6 +140,23 @@ static TEE_Result test_puf(void)
 		EMSG("Checking PUF Clear ID API returned error 0x%08x", ret);
 		return ret;
 	}
+
+	cfg.puf_operation = VERSAL_PUF_REGISTRATION;
+	cfg.shutter_value = VERSAL_PUF_SHUTTER_VALUE;
+	cfg.global_var_filter = VERSAL_PUF_GLBL_VAR_FLTR_OPTION;
+	cfg.read_option = VERSAL_PUF_READ_FROM_RAM;
+
+	ret = versal_puf_register(&data, &cfg);
+	if (ret) {
+		EMSG("Error registering PUF 0x%" PRIx32, ret);
+		return ret;
+	}
+
+	DMSG("Generated PUF Helper Data");
+	DMSG("CHash is 0x%" PRIx32, data.chash);
+	DMSG("Aux is 0x%" PRIx32, data.aux);
+	DMSG("PUF ID is:");
+	DHEXDUMP(data.puf_id, VERSAL_PUF_ID_WORDS * 4);
 
 	return ret;
 }
