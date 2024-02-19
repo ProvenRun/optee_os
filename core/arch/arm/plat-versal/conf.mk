@@ -6,7 +6,7 @@ CFG_MMAP_REGIONS ?= 24
 
 $(call force,CFG_SECURE_TIME_SOURCE_CNTPCT,y)
 $(call force,CFG_WITH_ARM_TRUSTED_FW,y)
-ifeq ($(PLATFORM_FLAVOR),adaptative)
+ifeq ($(PLATFORM_FLAVOR),net)
 $(call force,CFG_TEE_CORE_NB_CORE,16)
 else
 $(call force,CFG_TEE_CORE_NB_CORE,2)
@@ -28,7 +28,7 @@ CFG_WITH_STATS     ?= y
 CFG_ARM64_core     ?= y
 
 # Default Versal NET memory allocation
-ifeq ($(PLATFORM_FLAVOR),adaptative)
+ifeq ($(PLATFORM_FLAVOR),net)
 CFG_TZDRAM_START   ?= 0x22200000
 CFG_TZDRAM_SIZE    ?= 0x2700000
 CFG_SHMEM_START    ?= 0x24900000
@@ -73,7 +73,7 @@ CFG_VERSAL_PM ?= y
 $(call force, CFG_VERSAL_RNG_DRV,y)
 $(call force, CFG_WITH_SOFTWARE_PRNG,n)
 
-ifeq ($(PLATFORM_FLAVOR),adaptative)
+ifeq ($(PLATFORM_FLAVOR),net)
 $(call force,CFG_VERSAL_RNG_PLM,y)
 endif
 
@@ -91,7 +91,7 @@ ifeq ($(CFG_VERSAL_CRYPTO_DRIVER),y)
 # the driver's software fallback operations - need further work
 CFG_FAULT_MITIGATION ?= n
 
-ifeq ($(PLATFORM_FLAVOR),adaptative)
+ifeq ($(PLATFORM_FLAVOR),net)
 CFG_VERSAL_PKI_COUNTER_MEASURES ?= n
 CFG_VERSAL_PKI_PWCT ?= y
 endif

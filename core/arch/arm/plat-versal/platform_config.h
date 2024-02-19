@@ -44,7 +44,7 @@
 #define GICD_OFFSET		0
 #define GICC_OFFSET		0x40000
 
-#elif defined(PLATFORM_FLAVOR_adaptative)
+#elif defined(PLATFORM_FLAVOR_net)
 
 #define GIC_BASE		0xE2000000
 #define UART0_BASE		0xF1920000

@@ -56,7 +56,7 @@ static const struct versal_gpio_platform_data versal_gpio_pmc_def = {
  *  00 - 25, Bank 0
  *  26 - 57, Bank 3
  */
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 #define VERSAL_GPIO_PS_BASE		0xf19d0000
 #else
 #define VERSAL_GPIO_PS_BASE		0xff0b0000

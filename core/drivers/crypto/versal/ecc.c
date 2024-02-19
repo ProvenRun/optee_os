@@ -27,7 +27,7 @@ static const struct crypto_ecc_public_ops *pub_ops;
 TEE_Result versal_ecc_get_key_size(uint32_t curve, size_t *bytes, size_t *bits)
 {
 	switch (curve) {
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 	case TEE_ECC_CURVE_NIST_P256:
 		*bits = 256;
 		*bytes = 32;
@@ -88,7 +88,7 @@ TEE_Result versal_ecc_prepare_msg(uint32_t algo, const uint8_t *msg,
 		*len = TEE_SHA384_HASH_SIZE;
 	else if (algo == TEE_ALG_ECDSA_SHA512)
 		*len = TEE_SHA512_HASH_SIZE + 2;
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 	else if (algo == TEE_ALG_ECDSA_SHA256)
 		*len = TEE_SHA256_HASH_SIZE;
 #endif

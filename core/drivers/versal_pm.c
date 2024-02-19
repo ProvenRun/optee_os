@@ -19,7 +19,7 @@
 #include <utee_defines.h>
 
 /* VERSAL_SIP_UID: 2ab9e4ec-93b9-11e7-a019dfe0dbad0ae0 */
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 #define VERSAL_SIP_UID_0 U(0x5ac2d480)
 #define VERSAL_SIP_UID_1 U(0xeb11afeb)
 #define VERSAL_SIP_UID_2 U(0x4e0b6894)

@@ -42,7 +42,7 @@ struct versal_efuse_puf_fuse_addr {
  */
 #define EFUSE_MAX_LEN (EFUSE_MAX_USER_FUSES * sizeof(uint32_t))
 
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 enum versal_nvm_api_id {
 	API_FEATURES						= 0,
 	BBRAM_WRITE_AES_KEY					= 1,
@@ -223,7 +223,7 @@ static void *versal_get_read_buffer(struct versal_nvm_read_req *req)
 	return req->ibuf[0].buf;
 }
 
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 static TEE_Result versal_nvm_read(struct versal_nvm_read_req *req)
 {
 	if (!req)
@@ -421,7 +421,7 @@ TEE_Result versal_bbram_lock_write_user_data(void)
 	return TEE_SUCCESS;
 }
 
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 static TEE_Result versal_efuse_read_cache(uint16_t off, uint16_t num,
 				   uint32_t *buf, size_t len)
 {

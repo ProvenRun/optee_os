@@ -16,7 +16,7 @@
 #include <tee/cache.h>
 #include "drivers/versal_mbox.h"
 
-#if defined(PLATFORM_FLAVOR_adaptative)
+#if defined(PLATFORM_FLAVOR_net)
 #define IPI_REGS_BASEADDR		0xEB300000
 #define IPI_BUFFER_BASEADDR		0xEB3F0000
 #else
@@ -145,7 +145,7 @@ static const char *const nvm_id[] = {
 	[3] = "BBRAM_WRITE_USER_DATA",
 	[4] = "BBRAM_READ_USER_DATA",
 	[5] = "BBRAM_LOCK_WRITE_USER_DATA",
-#ifdef PLATFORM_FLAVOR_adaptative
+#ifdef PLATFORM_FLAVOR_net
 	[6] = "BBRAM_WRITE_AES_KEY_FROM_PLOAD",
 	[7] = "EFUSE_WRITE_AES_KEY",
 	[8] = "EFUSE_WRITE_AES_KEY_FROM_PLOAD",
