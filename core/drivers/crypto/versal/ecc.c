@@ -27,7 +27,7 @@ static const struct crypto_ecc_public_ops *pub_ops;
 TEE_Result versal_ecc_get_key_size(uint32_t curve, size_t *bytes, size_t *bits)
 {
 	switch (curve) {
-#if defined(PLATFORM_FLAVOR_net)
+#if defined(CFG_VERSAL_PKI_DRIVER)
 	case TEE_ECC_CURVE_NIST_P256:
 		*bits = 256;
 		*bytes = 32;

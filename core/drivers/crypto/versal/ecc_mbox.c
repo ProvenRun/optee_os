@@ -112,7 +112,7 @@ TEE_Result versal_ecc_verify(uint32_t algo, struct ecc_public_key *key,
 
 	ret = versal_mbox_alloc(bytes * 2, NULL, &x);
 	if (ret)
-		goto ou1;
+		goto out1;
 
 	crypto_bignum_bn2bin_eswap(key->curve, key->x, x.buf);
 	crypto_bignum_bn2bin_eswap(key->curve, key->y,
@@ -285,15 +285,15 @@ out1:
 
 /* AMD/Xilinx Versal's Known Answer Tests */
 #define XSECURE_ECDSA_KAT_NIST_P384	0
-#define XSECURE_ECDSA_KAT_NIST_P521	2
 
 TEE_Result versal_ecc_kat(void)
 {
 	struct versal_cmd_args arg = { };
 	uint32_t err = 0;
 
+	arg.data[arg.dlen++] = VERSAL_ELLIPTIC_SIGN_GEN_KAT;
 	arg.data[arg.dlen++] = XSECURE_ECDSA_KAT_NIST_P384;
-	if (versal_crypto_request(VERSAL_ELLIPTIC_KAT, &arg, &err)) {
+	if (versal_crypto_request(VERSAL_KAT, &arg, &err)) {
 		EMSG("Versal KAG NIST_P384: %s", versal_ecc_error(err));
 		return TEE_ERROR_GENERIC;
 	}
@@ -301,8 +301,9 @@ TEE_Result versal_ecc_kat(void)
 	/* Clean previous request */
 	arg.dlen = 0;
 
-	arg.data[arg.dlen++] = XSECURE_ECDSA_KAT_NIST_P521;
-	if (versal_crypto_request(VERSAL_ELLIPTIC_KAT, &arg, &err)) {
+	arg.data[arg.dlen++] = VERSAL_ELLIPTIC_SIGN_VERIFY_KAT;
+	arg.data[arg.dlen++] = XSECURE_ECDSA_KAT_NIST_P384;
+	if (versal_crypto_request(VERSAL_KAT, &arg, &err)) {
 		EMSG("Versal KAG NIST_P521 %s", versal_ecc_error(err));
 		return TEE_ERROR_GENERIC;
 	}
